@@ -1,26 +1,10 @@
 import { FREE_MODELS_IDS } from "../config"
-import { claudeModels } from "./data/claude"
-import { deepseekModels } from "./data/deepseek"
-import { geminiModels } from "./data/gemini"
-import { grokModels } from "./data/grok"
-import { mistralModels } from "./data/mistral"
 import { getOllamaModels, ollamaModels } from "./data/ollama"
-import { openaiModels } from "./data/openai"
-import { openrouterModels } from "./data/openrouter"
-import { perplexityModels } from "./data/perplexity"
 import { ModelConfig } from "./types"
 
-// Static models (always available)
+// Static models (always available) - Only Ollama
 const STATIC_MODELS: ModelConfig[] = [
-  ...openaiModels,
-  ...mistralModels,
-  ...deepseekModels,
-  ...claudeModels,
-  ...grokModels,
-  ...perplexityModels,
-  ...geminiModels,
   ...ollamaModels, // Static fallback Ollama models
-  ...openrouterModels,
 ]
 
 // Dynamic models cache
@@ -28,7 +12,7 @@ let dynamicModelsCache: ModelConfig[] | null = null
 let lastFetchTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
-// // Function to get all models including dynamically detected ones
+// Function to get all models including dynamically detected ones and RAG models
 export async function getAllModels(): Promise<ModelConfig[]> {
   const now = Date.now()
 
@@ -41,18 +25,14 @@ export async function getAllModels(): Promise<ModelConfig[]> {
     // Get dynamically detected Ollama models (includes enabled check internally)
     const detectedOllamaModels = await getOllamaModels()
 
-    // Combine static models (excluding static Ollama models) with detected ones
-    const staticModelsWithoutOllama = STATIC_MODELS.filter(
-      (model) => model.providerId !== "ollama"
-    )
-
-    dynamicModelsCache = [...staticModelsWithoutOllama, ...detectedOllamaModels]
+    // RAG functionality removed - only Ollama models available
+    dynamicModelsCache = [...detectedOllamaModels]
 
     lastFetchTime = now
     return dynamicModelsCache
   } catch (error) {
-    console.warn("Failed to load dynamic models, using static models:", error)
-    return STATIC_MODELS
+    console.warn("Failed to load models:", error)
+    return []
   }
 }
 
@@ -62,7 +42,9 @@ export async function getModelsWithAccessFlags(): Promise<ModelConfig[]> {
   const freeModels = models
     .filter(
       (model) =>
-        FREE_MODELS_IDS.includes(model.id) || model.providerId === "ollama"
+        FREE_MODELS_IDS.includes(model.id) || 
+        model.providerId === "ollama" || 
+        model.providerId === "rag"
     )
     .map((model) => ({
       ...model,
@@ -79,44 +61,17 @@ export async function getModelsWithAccessFlags(): Promise<ModelConfig[]> {
   return [...freeModels, ...proModels]
 }
 
-export async function getModelsForProvider(
-  provider: string
-): Promise<ModelConfig[]> {
-  const models = STATIC_MODELS
-
-  const providerModels = models
-    .filter((model) => model.providerId === provider)
-    .map((model) => ({
-      ...model,
-      accessible: true,
-    }))
-
-  return providerModels
-}
-
-// Function to get models based on user's available providers
-export async function getModelsForUserProviders(
-  providers: string[]
-): Promise<ModelConfig[]> {
-  const providerModels = await Promise.all(
-    providers.map((provider) => getModelsForProvider(provider))
-  )
-
-  const flatProviderModels = providerModels.flat()
-
-  return flatProviderModels
-}
 
 // Synchronous function to get model info for simple lookups
-// This uses cached data if available, otherwise falls back to static models
+// This uses cached data if available, otherwise returns undefined
 export function getModelInfo(modelId: string): ModelConfig | undefined {
   // First check the cache if it exists
   if (dynamicModelsCache) {
     return dynamicModelsCache.find((model) => model.id === modelId)
   }
 
-  // Fall back to static models for immediate lookup
-  return STATIC_MODELS.find((model) => model.id === modelId)
+  // No fallback - return undefined if not in cache
+  return undefined
 }
 
 // For backward compatibility - static models only
@@ -126,4 +81,10 @@ export const MODELS: ModelConfig[] = STATIC_MODELS
 export function refreshModelsCache(): void {
   dynamicModelsCache = null
   lastFetchTime = 0
+}
+
+// Function to refresh models cache when RAG models change
+export async function refreshWithRagModels(): Promise<void> {
+  refreshModelsCache()
+  await getAllModels() // This will rebuild the cache with latest models
 }

@@ -222,7 +222,7 @@ export function SidebarProjectItem({ project }: SidebarProjectItemProps) {
   const menuClassName = useMemo(
     () =>
       cn(
-        "absolute top-0 right-1 flex h-full items-center justify-center opacity-0 transition-opacity group-hover/project:opacity-100",
+        "absolute top-0 right-1 flex h-full items-center justify-center opacity-0 transition-opacity group-hover/project:opacity-100 group-data-[collapsible=icon]:hidden",
         isMobile && "opacity-100 group-hover/project:opacity-100"
       ),
     [isMobile]
@@ -271,11 +271,11 @@ export function SidebarProjectItem({ project }: SidebarProjectItemProps) {
             onClick={handleLinkClick}
           >
             <div
-              className="text-primary relative line-clamp-1 flex w-full items-center gap-2 mask-r-from-80% mask-r-to-85% px-2 py-2 text-sm text-ellipsis whitespace-nowrap"
+              className="text-primary relative line-clamp-1 flex w-full items-center gap-2 mask-r-from-80% mask-r-to-85% px-2 py-2 text-sm text-ellipsis whitespace-nowrap group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
               title={displayName}
             >
-              <FolderIcon size={20} />
-              {displayName}
+              <FolderIcon size={20} className="group-data-[collapsible=icon]:mx-auto" />
+              <span className="group-data-[collapsible=icon]:hidden">{displayName}</span>
             </div>
           </Link>
 

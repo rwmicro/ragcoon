@@ -15,27 +15,18 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { getModelInfo } from "@/lib/models"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
-import { cn } from "@/lib/utils"
 import { FileArrowUp, Paperclip } from "@phosphor-icons/react"
 import React from "react"
-import { PopoverContentAuth } from "./popover-content-auth"
 
 type ButtonFileUploadProps = {
   onFileUpload: (files: File[]) => void
-  isUserAuthenticated: boolean
   model: string
 }
 
 export function ButtonFileUpload({
   onFileUpload,
-  isUserAuthenticated,
   model,
 }: ButtonFileUploadProps) {
-  if (!isSupabaseEnabled) {
-    return null
-  }
-
   const isFileUploadAvailable = getModelInfo(model)?.vision
 
   if (!isFileUploadAvailable) {
@@ -68,36 +59,12 @@ export function ButtonFileUpload({
     )
   }
 
-  if (!isUserAuthenticated) {
-    return (
-      <Popover>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="border-border dark:bg-secondary size-9 rounded-full border bg-transparent"
-                type="button"
-                aria-label="Add files"
-              >
-                <Paperclip className="size-4" />
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Add files</TooltipContent>
-        </Tooltip>
-        <PopoverContentAuth />
-      </Popover>
-    )
-  }
 
   return (
     <FileUpload
       onFilesAdded={onFileUpload}
       multiple
-      disabled={!isUserAuthenticated}
-      accept=".txt,.md,image/jpeg,image/png,image/gif,image/webp,image/svg,image/heic,image/heif"
+      accept=".txt,.md,image/jpeg,image/png,image/gif,image/webp,image/svg,image/heic,image/heif,video/mp4,video/webm,video/quicktime,.avi,.wmv,.3gp,.flv,.mkv"
     >
       <Tooltip>
         <TooltipTrigger asChild>
@@ -105,12 +72,8 @@ export function ButtonFileUpload({
             <Button
               size="sm"
               variant="secondary"
-              className={cn(
-                "border-border dark:bg-secondary size-9 rounded-full border bg-transparent",
-                !isUserAuthenticated && "opacity-50"
-              )}
+              className="border-border dark:bg-secondary size-9 rounded-full border bg-transparent"
               type="button"
-              disabled={!isUserAuthenticated}
               aria-label="Add files"
             >
               <Paperclip className="size-4" />

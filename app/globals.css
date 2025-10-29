@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-@import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -157,6 +156,11 @@ code {
 }
 
 /* sonner toast */
+[data-sonner-toaster] {
+  z-index: 9999 !important;
+}
+
 [data-sonner-toaster] > li {
   width: 100%;
+  z-index: 9999 !important;
 }

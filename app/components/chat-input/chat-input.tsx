@@ -29,7 +29,6 @@ type ChatInputProps = {
   hasSuggestions?: boolean
   onSelectModel: (model: string) => void
   selectedModel: string
-  isUserAuthenticated: boolean
   stop: () => void
   status?: "submitted" | "streaming" | "ready" | "error"
   setEnableSearch: (enabled: boolean) => void
@@ -49,7 +48,6 @@ export function ChatInput({
   hasSuggestions,
   onSelectModel,
   selectedModel,
-  isUserAuthenticated,
   stop,
   status,
   setEnableSearch,
@@ -107,12 +105,7 @@ export function ChatInput({
         item.type.startsWith("image/")
       )
 
-      if (!isUserAuthenticated && hasImageContent) {
-        e.preventDefault()
-        return
-      }
-
-      if (isUserAuthenticated && hasImageContent) {
+      if (hasImageContent) {
         const imageFiles: File[] = []
 
         for (const item of Array.from(items)) {
@@ -135,7 +128,7 @@ export function ChatInput({
       }
       // Text pasting will work by default for everyone
     },
-    [isUserAuthenticated, onFileUpload]
+[onFileUpload]
   )
 
   useEffect(() => {
@@ -178,7 +171,7 @@ export function ChatInput({
           <FileList files={files} onFileRemove={onFileRemove} />
           <PromptInputTextarea
             ref={textareaRef}
-            placeholder="Ask Zola"
+            placeholder="Ask RagCoon"
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             className="min-h-[44px] pt-3 pl-4 text-base leading-[1.3] sm:text-base md:text-base"
@@ -187,20 +180,17 @@ export function ChatInput({
             <div className="flex gap-2">
               <ButtonFileUpload
                 onFileUpload={onFileUpload}
-                isUserAuthenticated={isUserAuthenticated}
                 model={selectedModel}
               />
               <ModelSelector
                 selectedModelId={selectedModel}
                 setSelectedModelId={onSelectModel}
-                isUserAuthenticated={isUserAuthenticated}
                 className="rounded-full"
               />
               {hasSearchSupport ? (
                 <ButtonSearch
                   isSelected={enableSearch}
                   onToggle={setEnableSearch}
-                  isAuthenticated={isUserAuthenticated}
                 />
               ) : null}
             </div>
@@ -210,7 +200,7 @@ export function ChatInput({
               <Button
                 size="sm"
                 className="size-9 rounded-full transition-all duration-300 ease-out"
-                disabled={!value || isSubmitting || isOnlyWhitespace(value)}
+                disabled={Boolean(!value || isSubmitting || isOnlyWhitespace(value))}
                 type="button"
                 onClick={handleSend}
                 aria-label={status === "streaming" ? "Stop" : "Send message"}

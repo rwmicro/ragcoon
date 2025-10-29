@@ -1,6 +1,5 @@
 "use client"
 
-import { PopoverContentAuth } from "@/app/components/chat-input/popover-content-auth"
 import { useBreakpoint } from "@/app/hooks/use-breakpoint"
 import { useKeyShortcut } from "@/app/hooks/use-key-shortcut"
 import { Button } from "@/components/ui/button"
@@ -18,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Popover, PopoverTrigger } from "@/components/ui/popover"
 import {
   Tooltip,
   TooltipContent,
@@ -28,32 +26,31 @@ import { useModel } from "@/lib/model-store/provider"
 import { filterAndSortModels } from "@/lib/model-store/utils"
 import { ModelConfig } from "@/lib/models/types"
 import { PROVIDERS } from "@/lib/providers"
-import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { cn } from "@/lib/utils"
 import {
+  ArrowClockwise,
   CaretDownIcon,
   MagnifyingGlassIcon,
   StarIcon,
 } from "@phosphor-icons/react"
 import { useRef, useState } from "react"
-import { ProModelDialog } from "./pro-dialog"
 import { SubMenu } from "./sub-menu"
 
 type ModelSelectorProps = {
   selectedModelId: string
   setSelectedModelId: (modelId: string) => void
   className?: string
-  isUserAuthenticated?: boolean
 }
 
 export function ModelSelector({
   selectedModelId,
   setSelectedModelId,
   className,
-  isUserAuthenticated = true,
 }: ModelSelectorProps) {
-  const { models, isLoading: isLoadingModels, favoriteModels } = useModel()
-  const { isModelHidden } = useUserPreferences()
+  const { models, isLoading: isLoadingModels, refreshModels } = useModel()
+  
+  // Default implementation for model visibility
+  const isModelHidden = () => false
 
   const currentModel = models.find((model) => model.id === selectedModelId)
   const currentProvider = PROVIDERS.find(
@@ -67,6 +64,7 @@ export function ModelSelector({
   const [isProDialogOpen, setIsProDialogOpen] = useState(false)
   const [selectedProModel, setSelectedProModel] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Ref for input to maintain focus
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -129,7 +127,6 @@ export function ModelSelector({
 
   const filteredModels = filterAndSortModels(
     models,
-    favoriteModels || [],
     searchQuery,
     isModelHidden
   )
@@ -138,7 +135,7 @@ export function ModelSelector({
     <Button
       variant="outline"
       className={cn("dark:bg-secondary justify-between", className)}
-      disabled={isLoadingModels}
+      disabled={Boolean(isLoadingModels)}
     >
       <div className="flex items-center gap-2">
         {currentProvider?.icon && <currentProvider.icon className="size-5" />}
@@ -154,45 +151,21 @@ export function ModelSelector({
     setSearchQuery(e.target.value)
   }
 
-  // If user is not authenticated, show the auth popover
-  if (!isUserAuthenticated) {
-    return (
-      <Popover>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                size="sm"
-                variant="secondary"
-                className={cn(
-                  "border-border dark:bg-secondary text-accent-foreground h-9 w-auto border bg-transparent",
-                  className
-                )}
-                type="button"
-              >
-                {currentProvider?.icon && (
-                  <currentProvider.icon className="size-5" />
-                )}
-                {currentModel?.name}
-                <CaretDownIcon className="size-4" />
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Select a model</TooltipContent>
-        </Tooltip>
-        <PopoverContentAuth />
-      </Popover>
-    )
+  // Handle refresh models
+  const handleRefreshModels = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsRefreshing(true)
+    try {
+      await refreshModels()
+    } finally {
+      setIsRefreshing(false)
+    }
   }
+
 
   if (isMobile) {
     return (
       <>
-        <ProModelDialog
-          isOpen={isProDialogOpen}
-          setIsOpen={setIsProDialogOpen}
-          currentModel={selectedProModel || ""}
-        />
         <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
           <DrawerTrigger asChild>{trigger}</DrawerTrigger>
           <DrawerContent>
@@ -200,16 +173,37 @@ export function ModelSelector({
               <DrawerTitle>Select Model</DrawerTitle>
             </DrawerHeader>
             <div className="px-4 pb-2">
-              <div className="relative">
-                <MagnifyingGlassIcon className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
-                <Input
-                  ref={searchInputRef}
-                  placeholder="Search models..."
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onClick={(e) => e.stopPropagation()}
-                />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <MagnifyingGlassIcon className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
+                  <Input
+                    ref={searchInputRef}
+                    placeholder="Search models..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleRefreshModels}
+                      disabled={isRefreshing || isLoadingModels}
+                      className="shrink-0"
+                    >
+                      <ArrowClockwise
+                        className={cn(
+                          "size-4",
+                          isRefreshing && "animate-spin"
+                        )}
+                      />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Refresh Models</TooltipContent>
+                </Tooltip>
               </div>
             </div>
             <div className="flex h-full flex-col space-y-0 overflow-y-auto px-4 pb-6">
@@ -222,19 +216,9 @@ export function ModelSelector({
               ) : filteredModels.length > 0 ? (
                 filteredModels.map((model) => renderModelItem(model))
               ) : (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center">
-                  <p className="text-muted-foreground mb-2 text-sm">
+                  <p className="text-muted-foreground mb-2 text-sm p-6 text-center">
                     No results found.
                   </p>
-                  <a
-                    href="https://github.com/ibelick/zola/issues/new?title=Model%20Request%3A%20"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground text-sm underline"
-                  >
-                    Request a new model
-                  </a>
-                </div>
               )}
             </div>
           </DrawerContent>
@@ -245,11 +229,6 @@ export function ModelSelector({
 
   return (
     <div>
-      <ProModelDialog
-        isOpen={isProDialogOpen}
-        setIsOpen={setIsProDialogOpen}
-        currentModel={selectedProModel || ""}
-      />
       <Tooltip>
         <DropdownMenu
           open={isDropdownOpen}
@@ -275,18 +254,39 @@ export function ModelSelector({
             side="top"
           >
             <div className="bg-background sticky top-0 z-10 rounded-t-md border-b px-0 pt-0 pb-0">
-              <div className="relative">
-                <MagnifyingGlassIcon className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
-                <Input
-                  ref={searchInputRef}
-                  placeholder="Search models..."
-                  className="dark:bg-popover rounded-b-none border border-none pl-8 shadow-none focus-visible:ring-0"
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  onClick={(e) => e.stopPropagation()}
-                  onFocus={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                />
+              <div className="flex">
+                <div className="relative flex-1">
+                  <MagnifyingGlassIcon className="text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4" />
+                  <Input
+                    ref={searchInputRef}
+                    placeholder="Search models..."
+                    className="dark:bg-popover rounded-b-none rounded-r-none border border-none pl-8 shadow-none focus-visible:ring-0"
+                    value={searchQuery}
+                    onChange={handleSearchChange}
+                    onClick={(e) => e.stopPropagation()}
+                    onFocus={(e) => e.stopPropagation()}
+                    onKeyDown={(e) => e.stopPropagation()}
+                  />
+                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleRefreshModels}
+                      disabled={isRefreshing || isLoadingModels}
+                      className="shrink-0 rounded-l-none rounded-br-none border-none shadow-none h-10 w-10"
+                    >
+                      <ArrowClockwise
+                        className={cn(
+                          "size-4",
+                          isRefreshing && "animate-spin"
+                        )}
+                      />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Refresh Models</TooltipContent>
+                </Tooltip>
               </div>
             </div>
             <div className="flex h-full flex-col space-y-0 overflow-y-auto px-1 pt-0 pb-0">
@@ -346,19 +346,9 @@ export function ModelSelector({
                   )
                 })
               ) : (
-                <div className="flex h-full flex-col items-center justify-center p-6 text-center">
-                  <p className="text-muted-foreground mb-1 text-sm">
+                  <p className="text-muted-foreground mb-1 text-sm p-6 text-center">
                     No results found.
                   </p>
-                  <a
-                    href="https://github.com/ibelick/zola/issues/new?title=Model%20Request%3A%20"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted-foreground text-sm underline"
-                  >
-                    Request a new model
-                  </a>
-                </div>
               )}
             </div>
 

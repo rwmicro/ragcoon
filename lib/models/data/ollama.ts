@@ -35,17 +35,15 @@ const getOllamaBaseURL = (): string => {
   )
 }
 
-// Simple check: disabled in production or if DISABLE_OLLAMA=true
+// Simple check: disabled only if DISABLE_OLLAMA=true
 const shouldEnableOllama = (): boolean => {
-  return (
-    process.env.NODE_ENV !== "production" &&
-    process.env.DISABLE_OLLAMA !== "true"
-  )
+  return process.env.DISABLE_OLLAMA !== "true"
 }
 
 // Function to detect available Ollama models
 async function detectOllamaModels(): Promise<ModelConfig[]> {
   if (!shouldEnableOllama()) {
+    console.log('Ollama is disabled via DISABLE_OLLAMA environment variable')
     return []
   }
 
@@ -222,7 +220,12 @@ function checkVisionCapability(modelName: string, family: string): boolean {
   return (
     name.includes("vision") ||
     name.includes("visual") ||
-    (family === "Llama" && name.includes("3.2"))
+    name.includes("video") ||
+    (family === "Llama" && (name.includes("3.2") || name.includes("3.1"))) ||
+    (family === "Qwen" && (name.includes("2.5") || name.includes("vl"))) ||
+    (family === "DeepSeek" && name.includes("vl")) ||
+    name.includes("multimodal") ||
+    name.includes("mm")
   )
 }
 
@@ -266,13 +269,13 @@ function formatModelName(modelName: string): string {
 // Static fallback models for when Ollama is not available
 const staticOllamaModels: ModelConfig[] = [
   {
-    id: "llama3.2:latest",
-    name: "Llama 3.2 Latest",
+    id: "llama3.1:latest",
+    name: "Llama 3.1 Latest",
     provider: "Meta",
     providerId: "ollama",
-    modelFamily: "Llama 3.2",
+    modelFamily: "Llama 3.1",
     baseProviderId: "meta",
-    description: "Latest Llama 3.2 model running locally via Ollama",
+    description: "Latest Llama 3.1 model running locally via Ollama",
     tags: ["local", "open-source", "fast", "8b"],
     contextWindow: 128000,
     inputCost: 0.0,
@@ -287,9 +290,35 @@ const staticOllamaModels: ModelConfig[] = [
     intelligence: "High",
     website: "https://ollama.com",
     apiDocs: "https://github.com/ollama/ollama/blob/main/docs/api.md",
-    modelPage: "https://ollama.com/library/llama3.2",
+    modelPage: "https://ollama.com/library/llama3.1",
     apiSdk: (apiKey?: string) =>
-      openproviders("llama3.2:latest" as string, undefined, apiKey),
+      openproviders("llama3.1:latest" as string, undefined, apiKey),
+  },
+  {
+    id: "qwen3:8b",
+    name: "Qwen3 8B",
+    provider: "Alibaba",
+    providerId: "ollama",
+    modelFamily: "Qwen3",
+    baseProviderId: "alibaba",
+    description: "Qwen3 8B model running locally via Ollama",
+    tags: ["local", "open-source", "fast", "8b", "multilingual"],
+    contextWindow: 32768,
+    inputCost: 0.0,
+    outputCost: 0.0,
+    priceUnit: "free (local)",
+    vision: false,
+    tools: true,
+    audio: false,
+    reasoning: true,
+    openSource: true,
+    speed: "Fast",
+    intelligence: "High",
+    website: "https://ollama.com",
+    apiDocs: "https://github.com/ollama/ollama/blob/main/docs/api.md",
+    modelPage: "https://ollama.com/library/qwen3",
+    apiSdk: (apiKey?: string) =>
+      openproviders("qwen3:8b" as string, undefined, apiKey),
   },
   {
     id: "qwen2.5-coder:latest",
@@ -324,14 +353,10 @@ const staticOllamaModels: ModelConfig[] = [
 export async function getOllamaModels(): Promise<ModelConfig[]> {
   const detectedModels = await detectOllamaModels()
 
-  // If no models detected and Ollama is enabled, return static fallback models
-  if (detectedModels.length === 0 && shouldEnableOllama()) {
-    console.info("Using static Ollama models as fallback")
-    return staticOllamaModels
-  }
-
   if (detectedModels.length > 0) {
     console.info(`Detected ${detectedModels.length} Ollama models`)
+  } else {
+    console.info("No Ollama models detected - server may not be running")
   }
 
   return detectedModels

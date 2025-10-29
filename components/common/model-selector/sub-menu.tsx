@@ -73,29 +73,6 @@ export function SubMenu({ hoveredModelData }: SubMenuProps) {
             </span>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="font-medium">Input Pricing</span>
-              <span>
-                {Intl.NumberFormat("ja-JP", {
-                  style: "currency",
-                  currency: "USD",
-                }).format(hoveredModelData.inputCost ?? 0)}{" "}
-                / 1M tokens
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 text-sm">
-              <span className="font-medium">Output Pricing</span>
-              <span>
-                {Intl.NumberFormat("ja-JP", {
-                  style: "currency",
-                  currency: "USD",
-                }).format(hoveredModelData.outputCost ?? 0)}{" "}
-                / 1M tokens
-              </span>
-            </div>
-          </div>
 
           <div className="flex items-center justify-between gap-2 text-sm">
             <span className="font-medium">Provider</span>

@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer"
+import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { User } from "@phosphor-icons/react"
 import type React from "react"
@@ -40,6 +40,7 @@ export function SettingsTrigger({ onOpenChange }: SettingsTriggerProps) {
       <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerTrigger asChild>{trigger}</DrawerTrigger>
         <DrawerContent>
+          <DrawerTitle className="sr-only">Settings</DrawerTitle>
           <SettingsContent isDrawer />
         </DrawerContent>
       </Drawer>

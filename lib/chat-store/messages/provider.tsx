@@ -2,10 +2,12 @@
 
 import { toast } from "@/components/ui/toast"
 import { useChatSession } from "@/lib/chat-store/session/provider"
+// Cache functionality removed
 import type { Message as MessageAISDK } from "ai"
-import { createContext, useContext, useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useRef, useState } from "react"
 import { writeToIndexedDB } from "../persist"
 import {
+  addMessage,
   cacheMessages,
   clearMessagesForChat,
   getCachedMessages,
@@ -37,30 +39,49 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const [messages, setMessages] = useState<MessageAISDK[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const { chatId } = useChatSession()
+  const loadInProgressRef = useRef(false)
 
   useEffect(() => {
+    // Reset on chatId change
     if (chatId === null) {
       setMessages([])
       setIsLoading(false)
+      loadInProgressRef.current = false
+      return
     }
-  }, [chatId])
 
-  useEffect(() => {
-    if (!chatId) return
+    // Prevent concurrent loads
+    if (!chatId || loadInProgressRef.current) return
 
     const load = async () => {
+      loadInProgressRef.current = true
       setIsLoading(true)
-      const cached = await getCachedMessages(chatId)
-      setMessages(cached)
 
       try {
+        // Check memory cache first for better performance
+        const memCached = null // Cache removed
+        if (memCached) {
+          setMessages(memCached)
+          return
+        }
+
+        // Try IndexedDB cache (disabled currently, will return empty)
+        const cached = await getCachedMessages(chatId)
+        if (cached.length > 0) {
+          setMessages(cached)
+        }
+
+        // Always fetch fresh from DB
         const fresh = await getMessagesFromDb(chatId)
         setMessages(fresh)
-        cacheMessages(chatId, fresh)
+
+        // Cache only in memory (IndexedDB disabled for performance)
+        // Cache removed
       } catch (error) {
         console.error("Failed to fetch messages:", error)
       } finally {
         setIsLoading(false)
+        loadInProgressRef.current = false
       }
     }
 
@@ -82,12 +103,19 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     if (!chatId) return
 
     try {
+      // Save to database (SQLite/Supabase) AND local cache
+      await addMessage(chatId, message)
+      
       setMessages((prev) => {
         const updated = [...prev, message]
         writeToIndexedDB("messages", { id: chatId, messages: updated })
+        
+        // Update memory cache
+        // Cache removed
         return updated
       })
-    } catch {
+    } catch (error) {
+      console.error("Failed to save message:", error)
       toast({ title: "Failed to save message", status: "error" })
     }
   }

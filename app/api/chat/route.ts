@@ -1,7 +1,6 @@
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { getAllModels } from "@/lib/models"
 import { getProviderForModel } from "@/lib/openproviders/provider-map"
-import type { ProviderWithoutOllama } from "@/lib/user-keys"
 import { Attachment } from "@ai-sdk/ui-utils"
 import { Message as MessageAISDK, streamText, ToolSet } from "ai"
 import {
@@ -26,6 +25,19 @@ type ChatRequest = {
 }
 
 export async function POST(req: Request) {
+  // Rate limiting (disabled for local-only usage)
+  // Enable by setting ENABLE_RATE_LIMITING=true in .env
+  if (process.env.ENABLE_RATE_LIMITING === 'true') {
+    const { rateLimiter, RATE_LIMITS, getClientIdentifier, createRateLimitResponse } = await import('@/lib/rate-limiter')
+    const clientId = getClientIdentifier(req)
+    const rateLimit = rateLimiter.check(clientId, RATE_LIMITS.CHAT.maxRequests, RATE_LIMITS.CHAT.windowMs)
+
+    if (!rateLimit.allowed) {
+      console.warn(`Rate limit exceeded for client: ${clientId}`)
+      return createRateLimitResponse(rateLimit.resetTime)
+    }
+  }
+
   try {
     const {
       messages,
@@ -58,7 +70,8 @@ export async function POST(req: Request) {
 
     const userMessage = messages[messages.length - 1]
 
-    if (supabase && userMessage?.role === "user") {
+    // Always log user message (function handles both Supabase and SQLite)
+    if (userMessage?.role === "user") {
       await logUserMessage({
         supabase,
         userId,
@@ -73,26 +86,32 @@ export async function POST(req: Request) {
 
     const allModels = await getAllModels()
     const modelConfig = allModels.find((m) => m.id === model)
+    
+    console.log(`Looking for model: ${model}`)
+    console.log(`Available models: ${allModels.map(m => m.id).join(', ')}`)
+    console.log(`Model found: ${!!modelConfig}`)
+    console.log(`Model config apiSdk: ${!!modelConfig?.apiSdk}`)
 
-    if (!modelConfig || !modelConfig.apiSdk) {
+    if (!modelConfig) {
+      console.error(`Model ${model} not found in available models`)
       throw new Error(`Model ${model} not found`)
     }
 
-    const effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
-
-    let apiKey: string | undefined
-    if (isAuthenticated && userId) {
-      const { getEffectiveApiKey } = await import("@/lib/user-keys")
-      const provider = getProviderForModel(model)
-      apiKey =
-        (await getEffectiveApiKey(userId, provider as ProviderWithoutOllama)) ||
-        undefined
+    if (!modelConfig.apiSdk) {
+      console.error(`Model ${model} has no apiSdk configured`)
+      throw new Error(`Model ${model} configuration error`)
     }
+
+    let effectiveSystemPrompt = systemPrompt || SYSTEM_PROMPT_DEFAULT
+    let enhancedMessages = messages
+
+    // Ollama doesn't require API keys
+    const apiKey: string | undefined = undefined
 
     const result = streamText({
       model: modelConfig.apiSdk(apiKey, { enableSearch }),
       system: effectiveSystemPrompt,
-      messages: messages,
+      messages: enhancedMessages,
       tools: {} as ToolSet,
       maxSteps: 10,
       onError: (err: unknown) => {
@@ -101,16 +120,15 @@ export async function POST(req: Request) {
       },
 
       onFinish: async ({ response }) => {
-        if (supabase) {
-          await storeAssistantMessage({
-            supabase,
-            chatId,
-            messages:
-              response.messages as unknown as import("@/app/types/api.types").Message[],
-            message_group_id,
-            model,
-          })
-        }
+        // Always store assistant message
+        await storeAssistantMessage({
+          supabase,
+          chatId,
+          messages:
+            response.messages as unknown as import("@/app/types/api.types").Message[],
+          message_group_id,
+          model,
+        })
       },
     })
 

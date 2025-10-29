@@ -44,17 +44,26 @@ function CodeBlockCode({
 
   useEffect(() => {
     async function highlight() {
-      const html = await codeToHtml(code, {
-        lang: language,
-        theme: appTheme === "dark" ? "github-dark" : "github-light",
-      })
-      setHighlightedHtml(html)
+      if (!code || typeof code !== 'string') {
+        setHighlightedHtml('')
+        return
+      }
+      try {
+        const html = await codeToHtml(code, {
+          lang: language,
+          theme: appTheme === "dark" ? "github-dark" : "github-light",
+        })
+        setHighlightedHtml(html)
+      } catch (error) {
+        console.warn('Code highlighting failed:', error)
+        setHighlightedHtml(`<pre><code>${code}</code></pre>`)
+      }
     }
     highlight()
   }, [code, language, appTheme])
 
   const classNames = cn(
-    "w-full overflow-x-auto text-[13px] [&>pre]:px-4 [&>pre]:py-4 [&>pre]:!bg-background",
+    "w-full overflow-x-auto text-[13px] [&>pre]:px-4 [&>pre]:py-4 [&>pre]:!bg-muted/50",
     className
   )
 

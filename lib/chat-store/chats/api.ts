@@ -1,60 +1,73 @@
 import { readFromIndexedDB, writeToIndexedDB } from "@/lib/chat-store/persist"
 import type { Chat, Chats } from "@/lib/chat-store/types"
-import { createClient } from "@/lib/supabase/client"
-import { isSupabaseEnabled } from "@/lib/supabase/config"
 import { MODEL_DEFAULT } from "../../config"
 import { fetchClient } from "../../fetch"
 import { API_ROUTE_UPDATE_CHAT_MODEL } from "../../routes"
 
 export async function getChatsForUserInDb(userId: string): Promise<Chats[]> {
-  const supabase = createClient()
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from("chats")
-    .select("*")
-    .eq("user_id", userId)
-    .order("updated_at", { ascending: false })
-
-  if (!data || error) {
+  try {
+    const response = await fetch('/api/sqlite/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', userId })
+    })
+    
+    if (!response.ok) throw new Error('Failed to fetch chats')
+    
+    const { data } = await response.json()
+    return data || []
+  } catch (error) {
     console.error("Failed to fetch chats:", error)
     return []
   }
-
-  return data
 }
 
 export async function updateChatTitleInDb(id: string, title: string) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const { error } = await supabase
-    .from("chats")
-    .update({ title, updated_at: new Date().toISOString() })
-    .eq("id", id)
-  if (error) throw error
+  try {
+    const response = await fetch('/api/sqlite/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update', id, data: { title } })
+    })
+    
+    if (!response.ok) throw new Error('Failed to update chat title')
+  } catch (error) {
+    console.error("Failed to update chat title:", error)
+    throw error
+  }
 }
 
 export async function deleteChatInDb(id: string) {
-  const supabase = createClient()
-  if (!supabase) return
-
-  const { error } = await supabase.from("chats").delete().eq("id", id)
-  if (error) throw error
+  try {
+    const response = await fetch('/api/sqlite/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', id })
+    })
+    
+    if (!response.ok) throw new Error('Failed to delete chat')
+  } catch (error) {
+    console.error("Failed to delete chat:", error)
+    throw error
+  }
 }
 
 export async function getAllUserChatsInDb(userId: string): Promise<Chats[]> {
-  const supabase = createClient()
-  if (!supabase) return []
-
-  const { data, error } = await supabase
-    .from("chats")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-
-  if (!data || error) return []
-  return data
+  try {
+    const response = await fetch('/api/sqlite/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', userId })
+    })
+    
+    if (!response.ok) throw new Error('Failed to fetch chats')
+    
+    const { data } = await response.json()
+    return data || []
+  } catch (error) {
+    console.error("Failed to get all user chats:", error)
+    return []
+  }
 }
 
 export async function createChatInDb(
@@ -63,38 +76,61 @@ export async function createChatInDb(
   model: string,
   systemPrompt: string
 ): Promise<string | null> {
-  const supabase = createClient()
-  if (!supabase) return null
-
-  const { data, error } = await supabase
-    .from("chats")
-    .insert({ user_id: userId, title, model, system_prompt: systemPrompt })
-    .select("id")
-    .single()
-
-  if (error || !data?.id) return null
-  return data.id
+  try {
+    const chat = {
+      user_id: userId,
+      title,
+      model,
+      system_prompt: systemPrompt,
+      created_at: new Date().toISOString(),
+    }
+    
+    const response = await fetch('/api/sqlite/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', data: chat })
+    })
+    
+    if (!response.ok) throw new Error('Failed to create chat')
+    
+    const { data } = await response.json()
+    return data?.id || null
+  } catch (error) {
+    console.error("Failed to create chat:", error)
+    return null
+  }
 }
 
 export async function fetchAndCacheChats(userId: string): Promise<Chats[]> {
-  if (!isSupabaseEnabled) {
+  try {
+    const response = await fetch('/api/sqlite/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', userId })
+    })
+    
+    if (!response.ok) throw new Error('Failed to fetch chats')
+    
+    const { data } = await response.json()
+    
+    // Always cache and return SQLite data, even if empty
+    await writeToIndexedDB("chats", data || [])
+    return data || []
+  } catch (error) {
+    console.warn("SQLite chats fetch failed, falling back to cache:", error)
+    // Fallback to IndexedDB cache only
     return await getCachedChats()
   }
-
-  const data = await getChatsForUserInDb(userId)
-
-  if (data.length > 0) {
-    await writeToIndexedDB("chats", data)
-  }
-
-  return data
 }
 
 export async function getCachedChats(): Promise<Chats[]> {
   const all = await readFromIndexedDB<Chats>("chats")
-  return (all as Chats[]).sort(
+  console.log('[getCachedChats] Raw IndexedDB data:', all)
+  const sorted = (all as Chats[]).sort(
     (a, b) => +new Date(b.created_at || "") - +new Date(a.created_at || "")
   )
+  console.log('[getCachedChats] Sorted chats:', sorted.length, 'chats')
+  return sorted
 }
 
 export async function updateChatTitle(
@@ -212,8 +248,10 @@ export async function createNewChat(
     })
 
     const responseData = await res.json()
+    console.log('[createNewChatFromDb] API response:', responseData)
 
     if (!res.ok || !responseData.chat) {
+      console.error('[createNewChatFromDb] API error:', responseData)
       throw new Error(responseData.error || "Failed to create chat")
     }
 
@@ -228,7 +266,9 @@ export async function createNewChat(
       project_id: responseData.chat.project_id || null,
     }
 
+    console.log('[createNewChatFromDb] Formatted chat:', chat)
     await writeToIndexedDB("chats", chat)
+    console.log('[createNewChatFromDb] Saved to IndexedDB')
     return chat
   } catch (error) {
     console.error("Error creating new chat:", error)

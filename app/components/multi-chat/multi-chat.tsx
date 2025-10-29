@@ -89,7 +89,7 @@ export function MultiChat() {
     () => user?.system_prompt || SYSTEM_PROMPT_DEFAULT,
     [user?.system_prompt]
   )
-  const isAuthenticated = useMemo(() => !!user?.id, [user?.id])
+const isAuthenticated = true
 
   const createPersistedGroups = useCallback(() => {
     const persistedGroups: { [key: string]: GroupedMessage } = {}
@@ -340,7 +340,7 @@ export function MultiChat() {
       onFileRemove: handleFileRemove,
       selectedModelIds,
       onSelectedModelIdsChange: setSelectedModelIds,
-      isUserAuthenticated: isAuthenticated,
+      isUserAuthenticated: true,
       stop: handleStop,
       status: anyLoading ? ("streaming" as const) : ("ready" as const),
       anyLoading,

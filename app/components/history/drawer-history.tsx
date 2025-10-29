@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { Drawer, DrawerContent, DrawerTrigger } from "@/components/ui/drawer"
+import { Drawer, DrawerContent, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -18,6 +18,7 @@ import {
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useCallback, useMemo, useState } from "react"
+import { VirtualList, useVirtualList } from "@/components/ui/virtual-list"
 import { formatDate, groupChatsByDate } from "./utils"
 
 type DrawerHistoryProps = {
@@ -276,6 +277,7 @@ export function DrawerHistory({
         <TooltipContent>History</TooltipContent>
       </Tooltip>
       <DrawerContent>
+        <DrawerTitle className="sr-only">Chat History</DrawerTitle>
         <div className="flex h-dvh max-h-[80vh] flex-col">
           <div className="border-b p-4 pb-3">
             <div className="relative">

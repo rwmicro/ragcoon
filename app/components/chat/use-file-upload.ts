@@ -4,10 +4,32 @@ import {
   checkFileUploadLimit,
   processFiles,
 } from "@/lib/file-handling"
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+
+// Track active blob URLs to ensure cleanup
+export const activeBlobUrls = new Set<string>()
 
 export const useFileUpload = () => {
   const [files, setFiles] = useState<File[]>([])
+  const mountedRef = useRef(true)
+
+  // Cleanup all blob URLs on unmount
+  useEffect(() => {
+    mountedRef.current = true
+
+    return () => {
+      mountedRef.current = false
+      // Cleanup all tracked blob URLs
+      activeBlobUrls.forEach(url => {
+        try {
+          URL.revokeObjectURL(url)
+        } catch (error) {
+          // Silently fail if URL is already revoked
+        }
+      })
+      activeBlobUrls.clear()
+    }
+  }, [])
 
   const handleFileUploads = async (
     uid: string,
@@ -36,19 +58,41 @@ export const useFileUpload = () => {
   }
 
   const createOptimisticAttachments = (files: File[]) => {
-    return files.map((file) => ({
-      name: file.name,
-      contentType: file.type,
-      url: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
-    }))
+    return files.map((file) => {
+      const isMediaFile = file.type.startsWith("image/") || file.type.startsWith("video/")
+
+      if (isMediaFile) {
+        const url = URL.createObjectURL(file)
+        // Track the blob URL for cleanup
+        activeBlobUrls.add(url)
+        return {
+          name: file.name,
+          contentType: file.type,
+          url
+        }
+      }
+
+      return {
+        name: file.name,
+        contentType: file.type,
+        url: ""
+      }
+    })
   }
 
   const cleanupOptimisticAttachments = (attachments?: Array<{ url?: string }>) => {
     if (!attachments) return
+
     attachments.forEach((attachment) => {
       if (attachment.url?.startsWith("blob:")) {
-        URL.revokeObjectURL(attachment.url)
+        try {
+          URL.revokeObjectURL(attachment.url)
+          activeBlobUrls.delete(attachment.url)
+        } catch (error) {
+          // Silently fail if URL is already revoked
+        }
       }
+      // Data URLs (base64) don't need cleanup as they're just strings
     })
   }
 

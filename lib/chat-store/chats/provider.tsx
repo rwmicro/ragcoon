@@ -1,7 +1,8 @@
 "use client"
 
 import { toast } from "@/components/ui/toast"
-import { createContext, useContext, useEffect, useState } from "react"
+import { getOrCreateGuestUserId } from "@/lib/api"
+import { createContext, useContext, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { MODEL_DEFAULT, SYSTEM_PROMPT_DEFAULT } from "../../config"
 import type { Chats } from "../types"
 import {
@@ -54,31 +55,80 @@ export function ChatsProvider({
 }) {
   const [isLoading, setIsLoading] = useState(true)
   const [chats, setChats] = useState<Chats[]>([])
+  const [effectiveUserId, setEffectiveUserId] = useState<string | null>(null)
+  const refreshInProgressRef = useRef(false)
+  const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
-    if (!userId) return
+    const setupUserId = async () => {
+      let finalUserId = userId
 
-    const load = async () => {
-      setIsLoading(true)
-      const cached = await getCachedChats()
-      setChats(cached)
+      if (!finalUserId) {
+        // Generate guest user ID if none provided
+        const guestId = await getOrCreateGuestUserId(null)
+        if (guestId) {
+          finalUserId = guestId
+        } else {
+          // Fallback if guest creation fails
+          finalUserId = `fallback_${Date.now()}`
+        }
+      }
 
-      try {
-        const fresh = await fetchAndCacheChats(userId)
-        setChats(fresh)
-      } finally {
-        setIsLoading(false)
+      if (finalUserId) {
+        setEffectiveUserId(finalUserId)
       }
     }
 
-    load()
+    setupUserId()
   }, [userId])
 
-  const refresh = async () => {
-    if (!userId) return
+  useEffect(() => {
+    if (!effectiveUserId) return
 
-    const fresh = await fetchAndCacheChats(userId)
-    setChats(fresh)
+    const load = async () => {
+      setIsLoading(true)
+
+      // Load cached chats first for instant display
+      const cached = await getCachedChats()
+      setChats(cached)
+      setIsLoading(false) // Show cached data immediately
+
+      // Fetch fresh data in background using startTransition
+      startTransition(() => {
+        fetchAndCacheChats(effectiveUserId).then(fresh => {
+          setChats(fresh)
+        }).catch(error => {
+          console.error('[ChatsProvider] Failed to fetch fresh chats:', error)
+        })
+      })
+    }
+
+    load()
+  }, [effectiveUserId])
+
+  const refresh = async () => {
+    if (!effectiveUserId || refreshInProgressRef.current) return
+
+    try {
+      refreshInProgressRef.current = true
+      const fresh = await fetchAndCacheChats(effectiveUserId)
+      setChats(fresh)
+    } finally {
+      refreshInProgressRef.current = false
+    }
+  }
+
+  const refreshAndReturn = async () => {
+    if (!effectiveUserId || refreshInProgressRef.current) return []
+
+    try {
+      refreshInProgressRef.current = true
+      const fresh = await fetchAndCacheChats(effectiveUserId)
+      setChats(fresh)
+      return fresh
+    } finally {
+      refreshInProgressRef.current = false
+    }
   }
 
   const updateTitle = async (id: string, title: string) => {
@@ -123,7 +173,9 @@ export function ChatsProvider({
     systemPrompt?: string,
     projectId?: string
   ) => {
-    if (!userId) return
+    // Use the provided userId or fall back to effectiveUserId
+    const finalUserId = userId || effectiveUserId
+    if (!finalUserId) return
     const prev = [...chats]
 
     const optimisticId = `optimistic-${Date.now().toString()}`
@@ -133,7 +185,7 @@ export function ChatsProvider({
       created_at: new Date().toISOString(),
       model: model || MODEL_DEFAULT,
       system_prompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
-      user_id: userId,
+      user_id: finalUserId,
       public: true,
       updated_at: new Date().toISOString(),
       project_id: null,
@@ -142,20 +194,28 @@ export function ChatsProvider({
 
     try {
       const newChat = await createNewChatFromDb(
-        userId,
+        finalUserId,
         title,
         model,
         isAuthenticated,
         projectId
       )
 
-      setChats((prev) => [
-        newChat,
-        ...prev.filter((c) => c.id !== optimisticId),
-      ])
+      console.log('[createNewChat] Created chat:', newChat)
+      console.log('[createNewChat] Optimistic ID to replace:', optimisticId)
+
+      setChats((prev) => {
+        const updated = [
+          newChat,
+          ...prev.filter((c) => c.id !== optimisticId),
+        ]
+        console.log('[createNewChat] Updated chats state:', updated.length, 'chats')
+        return updated
+      })
 
       return newChat
-    } catch {
+    } catch (error) {
+      console.error('[createNewChat] Error creating chat:', error)
       setChats(prev)
       toast({ title: "Failed to create chat", status: "error" })
     }
@@ -182,32 +242,63 @@ export function ChatsProvider({
   }
 
   const bumpChat = async (id: string) => {
+    console.log('[bumpChat] Called for ID:', id)
+    console.log('[bumpChat] Current chats:', chats.length, 'chats')
+    console.log('[bumpChat] Current chat IDs:', chats.map(c => c.id))
+    
     const prev = [...chats]
+    const chatExists = prev.find(c => c.id === id)
+    console.log('[bumpChat] Chat exists in state:', !!chatExists)
+    
+    if (!chatExists) {
+      console.warn('[bumpChat] Chat not found in state, refreshing chats list')
+      const refreshedChats = await refreshAndReturn()
+      
+      // After refresh, try to find the chat again
+      const chatExistsAfterRefresh = refreshedChats.find(c => c.id === id)
+      
+      if (chatExistsAfterRefresh) {
+        console.log('[bumpChat] Chat found after refresh, proceeding with bump')
+        const updatedChats = refreshedChats.map((c) =>
+          c.id === id ? { ...c, updated_at: new Date().toISOString() } : c
+        )
+        const sorted = updatedChats.sort(
+          (a, b) => +new Date(b.updated_at || "") - +new Date(a.updated_at || "")
+        )
+        setChats(sorted)
+      } else {
+        console.warn('[bumpChat] Chat still not found after refresh')
+      }
+      return
+    }
+    
     const updatedChatWithNewUpdatedAt = prev.map((c) =>
       c.id === id ? { ...c, updated_at: new Date().toISOString() } : c
     )
     const sorted = updatedChatWithNewUpdatedAt.sort(
       (a, b) => +new Date(b.updated_at || "") - +new Date(a.updated_at || "")
     )
+    console.log('[bumpChat] Sorted chats:', sorted.length, 'chats')
     setChats(sorted)
   }
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    chats,
+    refresh,
+    updateTitle,
+    deleteChat,
+    setChats,
+    createNewChat,
+    resetChats,
+    getChatById,
+    updateChatModel,
+    bumpChat,
+    isLoading,
+  }), [chats, isLoading]) // Only recreate when chats or isLoading changes
+
   return (
-    <ChatsContext.Provider
-      value={{
-        chats,
-        refresh,
-        updateTitle,
-        deleteChat,
-        setChats,
-        createNewChat,
-        resetChats,
-        getChatById,
-        updateChatModel,
-        bumpChat,
-        isLoading,
-      }}
-    >
+    <ChatsContext.Provider value={contextValue}>
       {children}
     </ChatsContext.Provider>
   )

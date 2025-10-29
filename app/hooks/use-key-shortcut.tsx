@@ -1,18 +1,27 @@
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 
 export function useKeyShortcut(
   keyCombo: (e: KeyboardEvent) => boolean,
   action: () => void
 ) {
+  const actionRef = useRef(action)
+  const keyComboRef = useRef(keyCombo)
+
+  // Keep refs up to date
+  useEffect(() => {
+    actionRef.current = action
+    keyComboRef.current = keyCombo
+  }, [action, keyCombo])
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (keyCombo(e)) {
+      if (keyComboRef.current(e)) {
         e.preventDefault()
-        action()
+        actionRef.current()
       }
     }
 
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [keyCombo, action])
+  }, []) // Empty deps - listener never recreated
 }

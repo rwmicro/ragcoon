@@ -1,11 +1,14 @@
+// This file is deprecated - using SQLite-only implementation in api.ts
+// Keeping for potential future reference but functions are not used
+
 import type { ContentPart, Message } from "@/app/types/api.types"
 import type { Database, Json } from "@/app/types/database.types"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
 const DEFAULT_STEP = 0
 
+// Deprecated function - SQLite implementation is in api.ts
 export async function saveFinalAssistantMessage(
-  supabase: SupabaseClient<Database>,
+  _deprecated: any,
   chatId: string,
   messages: Message[],
   message_group_id?: string,
@@ -74,19 +77,15 @@ export async function saveFinalAssistantMessage(
 
   const finalPlainText = textParts.join("\n\n")
 
-  const { error } = await supabase.from("messages").insert({
-    chat_id: chatId,
-    role: "assistant",
-    content: finalPlainText || "",
-    parts: parts as unknown as Json,
-    message_group_id,
-    model,
-  })
-
-  if (error) {
-    console.error("Error saving final assistant message:", error)
-    throw new Error(`Failed to save assistant message: ${error.message}`)
-  } else {
-    console.log("Assistant message saved successfully (merged).")
+  // Get experimental_attachments from the last assistant message
+  const lastAssistantMessage = messages.findLast(msg => msg.role === "assistant") as any
+  const experimentalAttachments = lastAssistantMessage?.experimental_attachments || []
+  
+  console.log(`[DB Save DEBUG] Saving message with ${experimentalAttachments.length} experimental_attachments`)
+  if (experimentalAttachments.length > 0) {
+    console.log('[DB Save DEBUG] Attachments preview:', experimentalAttachments.map((att: any) => ({ name: att.name, contentType: att.contentType })))
   }
+
+  // Function is deprecated - SQLite implementation is in api.ts
+  throw new Error("This function is deprecated. Use SQLite implementation in api.ts")
 }

@@ -17,6 +17,7 @@ type MessageProps = {
   status?: "streaming" | "ready" | "submitted" | "error"
   className?: string
   onQuote?: (text: string, messageId: string) => void
+  currentModel?: string
 }
 
 export function Message({
@@ -33,6 +34,7 @@ export function Message({
   status,
   className,
   onQuote,
+  currentModel,
 }: MessageProps) {
   const [copied, setCopied] = useState(false)
 
@@ -61,6 +63,11 @@ export function Message({
   }
 
   if (variant === "assistant") {
+    // Extract RAG model name if this is a RAG model
+    const ragModelName = currentModel?.startsWith('rag:') 
+      ? currentModel.replace('rag:', '') 
+      : undefined
+
     return (
       <MessageAssistant
         copied={copied}
@@ -73,6 +80,8 @@ export function Message({
         className={className}
         messageId={id}
         onQuote={onQuote}
+        attachments={attachments}
+        ragModelName={ragModelName}
       >
         {children}
       </MessageAssistant>

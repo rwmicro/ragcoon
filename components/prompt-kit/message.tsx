@@ -65,7 +65,7 @@ const MessageContent = ({
 
   return markdown ? (
     <Markdown className={classNames} {...props}>
-      {children as string}
+      {(children as string) || ''}
     </Markdown>
   ) : (
     <div className={classNames} {...props}>

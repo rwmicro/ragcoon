@@ -8,6 +8,7 @@ import { useChats } from "@/lib/chat-store/chats/provider"
 import { useMessages } from "@/lib/chat-store/messages/provider"
 import { useChatSession } from "@/lib/chat-store/session/provider"
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
+import { getModelInfo } from "@/lib/models"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { useUser } from "@/lib/user-store/provider"
 import { cn } from "@/lib/utils"
@@ -15,6 +16,8 @@ import { AnimatePresence, motion } from "motion/react"
 import dynamic from "next/dynamic"
 import { redirect } from "next/navigation"
 import { useCallback, useMemo, useState } from "react"
+import { FileUpload, FileUploadContent } from "@/components/prompt-kit/file-upload"
+import { FileArrowUp } from "@phosphor-icons/react"
 import { useChatCore } from "./use-chat-core"
 import { useChatOperations } from "./use-chat-operations"
 import { useFileUpload } from "./use-file-upload"
@@ -24,10 +27,6 @@ const FeedbackWidget = dynamic(
   { ssr: false }
 )
 
-const DialogAuth = dynamic(
-  () => import("./dialog-auth").then((mod) => mod.DialogAuth),
-  { ssr: false }
-)
 
 export function Chat() {
   const { chatId } = useChatSession()
@@ -69,8 +68,7 @@ export function Chat() {
   })
 
   // State to pass between hooks
-  const [hasDialogAuth, setHasDialogAuth] = useState(false)
-  const isAuthenticated = useMemo(() => !!user?.id, [user?.id])
+const isAuthenticated = true
   const systemPrompt = useMemo(
     () => user?.system_prompt || SYSTEM_PROMPT_DEFAULT,
     [user?.system_prompt]
@@ -89,7 +87,7 @@ export function Chat() {
   )
 
   // Chat operations (utils + handlers) - created first
-  const { checkLimitsAndNotify, ensureChatExists, handleDelete, handleEdit } =
+  const { ensureChatExists, handleDelete, handleEdit } =
     useChatOperations({
       isAuthenticated,
       chatId,
@@ -97,7 +95,6 @@ export function Chat() {
       selectedModel,
       systemPrompt,
       createNewChat,
-      setHasDialogAuth,
       setMessages: () => {},
       setInput: () => {},
     })
@@ -125,7 +122,6 @@ export function Chat() {
     files,
     createOptimisticAttachments,
     setFiles,
-    checkLimitsAndNotify,
     cleanupOptimisticAttachments,
     ensureChatExists,
     handleFileUploads,
@@ -143,6 +139,7 @@ export function Chat() {
       onEdit: handleEdit,
       onReload: handleReload,
       onQuote: handleQuotedSelected,
+      currentModel: selectedModel,
     }),
     [
       messages,
@@ -151,6 +148,7 @@ export function Chat() {
       handleEdit,
       handleReload,
       handleQuotedSelected,
+      selectedModel,
     ]
   )
 
@@ -169,7 +167,7 @@ export function Chat() {
         preferences.promptSuggestions && !chatId && messages.length === 0,
       onSelectModel: handleModelChange,
       selectedModel,
-      isUserAuthenticated: isAuthenticated,
+      isUserAuthenticated: true,
       stop,
       status,
       setEnableSearch,
@@ -214,56 +212,79 @@ export function Chat() {
   }
 
   const showOnboarding = !chatId && messages.length === 0
+  
+  // Check if current model supports vision/file uploads
+  const modelSupportsFiles = getModelInfo(selectedModel)?.vision
 
   return (
-    <div
-      className={cn(
-        "@container/main relative flex h-full flex-col items-center justify-end md:justify-center"
-      )}
+    <FileUpload
+      onFilesAdded={handleFileUpload}
+      multiple
+      accept="image/jpeg,image/png,image/gif,image/webp,image/svg,image/heic,image/heif,video/mp4,video/webm,video/quicktime,.avi,.wmv,.3gp,.flv,.mkv,.txt,.md"
+      disabled={!modelSupportsFiles}
     >
-      <DialogAuth open={hasDialogAuth} setOpen={setHasDialogAuth} />
-
-      <AnimatePresence initial={false} mode="popLayout">
-        {showOnboarding ? (
-          <motion.div
-            key="onboarding"
-            className="absolute bottom-[60%] mx-auto max-w-[50rem] md:relative md:bottom-auto"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            layout="position"
-            layoutId="onboarding"
-            transition={{
-              layout: {
-                duration: 0,
-              },
-            }}
-          >
-            <h1 className="mb-6 text-3xl font-medium tracking-tight">
-              What&apos;s on your mind?
-            </h1>
-          </motion.div>
-        ) : (
-          <Conversation key="conversation" {...conversationProps} />
-        )}
-      </AnimatePresence>
-
-      <motion.div
+      <div
         className={cn(
-          "relative inset-x-0 bottom-0 z-50 mx-auto w-full max-w-3xl"
+          "@container/main relative flex h-full flex-col items-center justify-end md:justify-center"
         )}
-        layout="position"
-        layoutId="chat-input-container"
-        transition={{
-          layout: {
-            duration: messages.length === 1 ? 0.3 : 0,
-          },
-        }}
       >
-        <ChatInput {...chatInputProps} />
-      </motion.div>
+        <FileUploadContent>
+          <div className="border-input bg-background/95 flex flex-col items-center rounded-2xl border border-dashed p-12 shadow-lg backdrop-blur-sm">
+            <FileArrowUp className="text-primary size-12 mb-4" />
+            <span className="mb-2 text-xl font-semibold">Drop files here</span>
+            <span className="text-muted-foreground text-center text-sm max-w-sm">
+              Drop images, videos, or documents anywhere to upload and analyze with your selected multimodal model
+            </span>
+            {!modelSupportsFiles && (
+              <span className="text-amber-600 dark:text-amber-400 mt-3 text-sm font-medium">
+                Select a vision-capable model to upload files
+              </span>
+            )}
+          </div>
+        </FileUploadContent>
 
-      <FeedbackWidget authUserId={user?.id} />
-    </div>
+        <AnimatePresence initial={false} mode="popLayout">
+          {showOnboarding ? (
+            <motion.div
+              key="onboarding"
+              className="absolute bottom-[60%] mx-auto max-w-[50rem] md:relative md:bottom-auto"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              layout="position"
+              layoutId="onboarding"
+              transition={{
+                layout: {
+                  duration: 0,
+                },
+              }}
+            >
+              <h1 className="mb-6 text-3xl font-medium tracking-tight">
+                What&apos;s on your mind?
+              </h1>
+            </motion.div>
+          ) : (
+            <Conversation key="conversation" {...conversationProps} />
+          )}
+        </AnimatePresence>
+
+        <motion.div
+          className={cn(
+            "relative inset-x-0 bottom-0 z-50 mx-auto w-full max-w-3xl"
+          )}
+          layout="position"
+          layoutId="chat-input-container"
+          transition={{
+            layout: {
+              duration: messages.length === 1 ? 0.3 : 0,
+            },
+          }}
+        >
+          <ChatInput {...chatInputProps} />
+        </motion.div>
+
+        <FeedbackWidget authUserId={user?.id} />
+      </div>
+    </FileUpload>
   )
 }

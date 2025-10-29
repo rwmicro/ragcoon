@@ -14,20 +14,20 @@ export const REMAINING_QUERY_ALERT_THRESHOLD = 2
 export const DAILY_FILE_UPLOAD_LIMIT = 5
 export const DAILY_LIMIT_PRO_MODELS = 500
 
-export const NON_AUTH_ALLOWED_MODELS = ["gpt-4.1-nano"]
+export const NON_AUTH_ALLOWED_MODELS = ["qwen3:8b"]
 
 export const FREE_MODELS_IDS = [
-  "openrouter:deepseek/deepseek-r1:free",
-  "openrouter:meta-llama/llama-3.3-8b-instruct:free",
-  "pixtral-large-latest",
-  "mistral-large-latest",
-  "gpt-4.1-nano",
+  "qwen3:8b",
 ]
 
-export const MODEL_DEFAULT = "gpt-4.1-nano"
+export const MODEL_DEFAULT = "llama3.2:latest"
 
-export const APP_NAME = "Zola"
-export const APP_DOMAIN = "https://zola.chat"
+// Local-only mode configuration for Ollama
+export const LOCAL_ONLY_MODE = true
+export const SKIP_API_KEY_CHECK = true
+
+export const APP_NAME = "RagCoon"
+export const APP_DOMAIN = ""
 
 export const SUGGESTIONS = [
   {
@@ -116,6 +116,7 @@ export const SUGGESTIONS = [
   },
 ]
 
-export const SYSTEM_PROMPT_DEFAULT = `You are Zola, a thoughtful and clear assistant. Your tone is calm, minimal, and human. You write with intention—never too much, never too little. You avoid clichés, speak simply, and offer helpful, grounded answers. When needed, you ask good questions. You don't try to impress—you aim to clarify. You may use metaphors if they bring clarity, but you stay sharp and sincere. You're here to help the user think clearly and move forward, not to overwhelm or overperform.`
+export const SYSTEM_PROMPT_DEFAULT = `You are a thoughtful and clear assistant. Your tone is calm, minimal, and human. Write with intention—never too much, never too little. Avoid clichés, speak simply, and give grounded, helpful answers. Ask good, open questions when they move the conversation forward. Use metaphors only if they bring clarity. If you don’t know something, admit it plainly. Your goal is to help the user think clearly and take their next step without overwhelm.`
+
 
 export const MESSAGE_MAX_LENGTH = 10000

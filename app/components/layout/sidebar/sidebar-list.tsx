@@ -9,7 +9,7 @@ type SidebarListProps = {
 
 export function SidebarList({ title, items, currentChatId }: SidebarListProps) {
   return (
-    <div>
+    <div className="group-data-[collapsible=icon]:hidden">
       <h3 className="overflow-hidden px-2 pt-3 pb-2 text-xs font-semibold break-all text-ellipsis">
         {title}
       </h3>

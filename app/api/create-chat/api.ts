@@ -16,45 +16,22 @@ export async function createChatInDb({
   isAuthenticated,
   projectId,
 }: CreateChatInput) {
-  const supabase = await validateUserIdentity(userId, isAuthenticated)
-  if (!supabase) {
-    return {
-      id: crypto.randomUUID(),
-      user_id: userId,
-      title,
-      model,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-  }
+  // Database functionality removed - return chat object only
+  const chatId = crypto.randomUUID()
+  const now = new Date().toISOString()
 
-  await checkUsageByModel(supabase, userId, model, isAuthenticated)
-
-  const insertData: {
-    user_id: string
-    title: string
-    model: string
-    project_id?: string
-  } = {
+  const chat = {
+    id: chatId,
     user_id: userId,
     title: title || "New Chat",
     model,
+    created_at: now,
+    updated_at: now,
+    project_id: projectId || null,
+    public: false,
+    system_prompt: null,
   }
 
-  if (projectId) {
-    insertData.project_id = projectId
-  }
-
-  const { data, error } = await supabase
-    .from("chats")
-    .insert(insertData)
-    .select("*")
-    .single()
-
-  if (error || !data) {
-    console.error("Error creating chat:", error)
-    return null
-  }
-
-  return data
+  // Database saving removed - chat is only stored in IndexedDB on client-side
+  return chat
 }

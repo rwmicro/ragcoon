@@ -16,6 +16,12 @@ import { SearchImages } from "./search-images"
 import { SourcesList } from "./sources-list"
 import { ToolInvocation } from "./tool-invocation"
 import { useAssistantMessageSelection } from "./useAssistantMessageSelection"
+import type { Attachment } from "@ai-sdk/ui-utils"
+
+// Stub RAG types and functions since RAG functionality has been removed
+type ExtractedSource = any
+const isRagResponse = (content: string) => false
+const extractSourcesFromResponse = (content: string) => ({ cleanedContent: content, sources: [] })
 
 type MessageAssistantProps = {
   children: string
@@ -29,6 +35,8 @@ type MessageAssistantProps = {
   className?: string
   messageId: string
   onQuote?: (text: string, messageId: string) => void
+  attachments?: Attachment[]
+  ragModelName?: string
 }
 
 export function MessageAssistant({
@@ -43,6 +51,8 @@ export function MessageAssistant({
   className,
   messageId,
   onQuote,
+  attachments,
+  ragModelName,
 }: MessageAssistantProps) {
   const { preferences } = useUserPreferences()
   const sources = getSources(parts)
@@ -52,6 +62,27 @@ export function MessageAssistant({
   const reasoningParts = parts?.find((part) => part.type === "reasoning")
   const contentNullOrEmpty = children === null || children === ""
   const isLastStreaming = status === "streaming" && isLast
+  const isRagContent = isRagResponse(children || '')
+  
+  // Extract and clean sources from content
+  const { cleanedContent, sources: extractedSources } = extractSourcesFromResponse(children || '')
+  const displayContent = cleanedContent || children
+  
+  // Extract RAG sources from attachments
+  const ragSources: ExtractedSource[] = attachments
+    ?.filter(attachment => attachment.name === '__rag_sources__')
+    ?.map(attachment => {
+      try {
+        return JSON.parse((attachment as any).data || '[]') as ExtractedSource[]
+      } catch {
+        return []
+      }
+    })
+    .flat() || []
+  
+  console.log('[Debug] attachments:', attachments?.length || 0, attachments)
+  console.log('[Debug] ragSources:', ragSources.length)
+  
   const searchImageResults =
     parts
       ?.filter(
@@ -119,21 +150,22 @@ export function MessageAssistant({
         {contentNullOrEmpty ? null : (
           <MessageContent
             className={cn(
-              "prose dark:prose-invert relative min-w-full bg-transparent p-0",
-              "prose-h1:scroll-m-20 prose-h1:text-2xl prose-h1:font-semibold prose-h2:mt-8 prose-h2:scroll-m-20 prose-h2:text-xl prose-h2:mb-3 prose-h2:font-medium prose-h3:scroll-m-20 prose-h3:text-base prose-h3:font-medium prose-h4:scroll-m-20 prose-h5:scroll-m-20 prose-h6:scroll-m-20 prose-strong:font-medium prose-table:block prose-table:overflow-y-auto"
+              "prose dark:prose-invert relative min-w-full bg-transparent p-0 text-base",
+              "prose-h1:scroll-m-20 prose-h1:text-xl prose-h1:font-semibold prose-h1:text-foreground dark:prose-h1:text-white prose-h2:mt-8 prose-h2:scroll-m-20 prose-h2:text-lg prose-h2:mb-3 prose-h2:font-medium prose-h2:text-foreground dark:prose-h2:text-white prose-h3:scroll-m-20 prose-h3:text-base prose-h3:font-medium prose-h3:text-foreground dark:prose-h3:text-white prose-h4:scroll-m-20 prose-h4:text-foreground dark:prose-h4:text-white prose-h5:scroll-m-20 prose-h5:text-foreground dark:prose-h5:text-white prose-h6:scroll-m-20 prose-h6:text-foreground dark:prose-h6:text-white prose-strong:font-medium prose-table:block prose-table:overflow-y-auto prose-ul:text-foreground dark:prose-ul:text-gray-200 prose-ol:text-foreground dark:prose-ol:text-gray-200 prose-li:text-foreground dark:prose-li:text-gray-200"
             )}
             markdown={true}
           >
-            {children}
+            {displayContent}
           </MessageContent>
         )}
 
+        {/* Show web search sources */}
         {sources && sources.length > 0 && <SourcesList sources={sources} />}
 
         {Boolean(isLastStreaming || contentNullOrEmpty) ? null : (
           <MessageActions
             className={cn(
-              "-ml-2 flex gap-0 opacity-0 transition-opacity group-hover:opacity-100"
+              "-ml-2 flex gap-0 opacity-100"
             )}
           >
             <MessageAction

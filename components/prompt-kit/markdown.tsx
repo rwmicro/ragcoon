@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils"
 import { marked } from "marked"
 import { memo, useId, useMemo } from "react"
 import ReactMarkdown, { Components } from "react-markdown"
-import remarkBreaks from "remark-breaks"
 import remarkGfm from "remark-gfm"
 import { ButtonCopy } from "../common/button-copy"
 import {
@@ -20,8 +19,11 @@ export type MarkdownProps = {
 }
 
 function parseMarkdownIntoBlocks(markdown: string): string[] {
+  if (!markdown || typeof markdown !== 'string') {
+    return []
+  }
   const tokens = marked.lexer(markdown)
-  return tokens.map((token) => token.raw)
+  return tokens.map((token) => token.raw || '')
 }
 
 function extractLanguage(className?: string): string {
@@ -92,7 +94,7 @@ const MemoizedMarkdownBlock = memo(
   }) {
     return (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={[remarkGfm]}
         components={components}
       >
         {content}
@@ -114,7 +116,7 @@ function MarkdownComponent({
 }: MarkdownProps) {
   const generatedId = useId()
   const blockId = id ?? generatedId
-  const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children])
+  const blocks = useMemo(() => parseMarkdownIntoBlocks(children || ''), [children])
 
   return (
     <div className={className}>

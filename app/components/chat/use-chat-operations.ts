@@ -1,8 +1,7 @@
 import { toast } from "@/components/ui/toast"
-import { checkRateLimits } from "@/lib/api"
 import type { Chats } from "@/lib/chat-store/types"
-import { REMAINING_QUERY_ALERT_THRESHOLD } from "@/lib/config"
 import { Message } from "@ai-sdk/react"
+import { useRouter } from "next/navigation"
 import { useCallback } from "react"
 
 type UseChatOperationsProps = {
@@ -18,7 +17,6 @@ type UseChatOperationsProps = {
     isAuthenticated?: boolean,
     systemPrompt?: string
   ) => Promise<Chats | undefined>
-  setHasDialogAuth: (value: boolean) => void
   setMessages: (
     messages: Message[] | ((messages: Message[]) => Message[])
   ) => void
@@ -32,51 +30,14 @@ export function useChatOperations({
   selectedModel,
   systemPrompt,
   createNewChat,
-  setHasDialogAuth,
   setMessages,
 }: UseChatOperationsProps) {
-  // Chat utilities
-  const checkLimitsAndNotify = async (uid: string): Promise<boolean> => {
-    try {
-      const rateData = await checkRateLimits(uid, isAuthenticated)
-
-      if (rateData.remaining === 0 && !isAuthenticated) {
-        setHasDialogAuth(true)
-        return false
-      }
-
-      if (rateData.remaining === REMAINING_QUERY_ALERT_THRESHOLD) {
-        toast({
-          title: `Only ${rateData.remaining} quer${
-            rateData.remaining === 1 ? "y" : "ies"
-          } remaining today.`,
-          status: "info",
-        })
-      }
-
-      if (rateData.remainingPro === REMAINING_QUERY_ALERT_THRESHOLD) {
-        toast({
-          title: `Only ${rateData.remainingPro} pro quer${
-            rateData.remainingPro === 1 ? "y" : "ies"
-          } remaining today.`,
-          status: "info",
-        })
-      }
-
-      return true
-    } catch (err) {
-      console.error("Rate limit check failed:", err)
-      return false
-    }
-  }
+  // Chat utilities - rate limits removed since using local models
+  const router = useRouter()
 
   const ensureChatExists = async (userId: string, input: string) => {
-    if (!isAuthenticated) {
-      const storedGuestChatId = localStorage.getItem("guestChatId")
-      if (storedGuestChatId) return storedGuestChatId
-    }
-
-    if (messages.length === 0) {
+    // If we're on the home page (no chatId) and no messages, create a new chat
+    if (!chatId && messages.length === 0) {
       try {
         const newChat = await createNewChat(
           userId,
@@ -87,11 +48,6 @@ export function useChatOperations({
         )
 
         if (!newChat) return null
-        if (isAuthenticated) {
-          window.history.pushState(null, "", `/c/${newChat.id}`)
-        } else {
-          localStorage.setItem("guestChatId", newChat.id)
-        }
 
         return newChat.id
       } catch (err: unknown) {
@@ -114,6 +70,7 @@ export function useChatOperations({
       }
     }
 
+    // If we have a chatId, use it
     return chatId
   }
 
@@ -138,7 +95,6 @@ export function useChatOperations({
 
   return {
     // Utils
-    checkLimitsAndNotify,
     ensureChatExists,
 
     // Handlers

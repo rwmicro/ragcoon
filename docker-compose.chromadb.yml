@@ -1,0 +1,25 @@
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: ragcoon-chromadb
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./chromadb_data:/chroma/chroma
+    environment:
+      # Optional: Enable authentication
+      - CHROMA_SERVER_AUTH_CREDENTIALS_FILE=/chroma/auth.txt
+      - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=chromadb.auth.basic.BasicAuthCredentialsProvider
+      # Optional: Configure logging
+      - CHROMA_LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  chromadb_data:
+    driver: local

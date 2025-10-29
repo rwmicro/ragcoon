@@ -15,6 +15,7 @@ type ConversationProps = {
   onEdit: (id: string, newText: string) => void
   onReload: () => void
   onQuote?: (text: string, messageId: string) => void
+  currentModel?: string
 }
 
 export function Conversation({
@@ -24,6 +25,7 @@ export function Conversation({
   onEdit,
   onReload,
   onQuote,
+  currentModel,
 }: ConversationProps) {
   const initialMessageCount = useRef(messages.length)
 
@@ -64,6 +66,7 @@ export function Conversation({
                 parts={message.parts}
                 status={status}
                 onQuote={onQuote}
+                currentModel={currentModel}
               >
                 {message.content}
               </Message>

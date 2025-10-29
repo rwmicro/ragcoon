@@ -1,73 +1,51 @@
-import { saveFinalAssistantMessage } from "@/app/api/chat/db"
 import type {
   ChatApiParams,
   LogUserMessageParams,
   StoreAssistantMessageParams,
-  SupabaseClientType,
+  DatabaseClientType,
 } from "@/app/types/api.types"
-import { FREE_MODELS_IDS, NON_AUTH_ALLOWED_MODELS } from "@/lib/config"
 import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import { sanitizeUserInput } from "@/lib/sanitize"
 import { validateUserIdentity } from "@/lib/server/api"
-import { checkUsageByModel, incrementUsage } from "@/lib/usage"
-import { getUserKey, type ProviderWithoutOllama } from "@/lib/user-keys"
+
+// SQLite functionality removed - this is now a no-op
+async function saveFinalAssistantMessageToSQLite(
+  chatId: string,
+  messages: any[],
+  message_group_id?: string,
+  model?: string
+): Promise<void> {
+  // Database functionality removed
+  return
+}
 
 export async function validateAndTrackUsage({
   userId,
   model,
   isAuthenticated,
-}: ChatApiParams): Promise<SupabaseClientType | null> {
-  const supabase = await validateUserIdentity(userId, isAuthenticated)
-  if (!supabase) return null
+}: ChatApiParams): Promise<DatabaseClientType | null> {
+  const dbClient = await validateUserIdentity(userId, isAuthenticated)
 
-  // Check if user is authenticated
-  if (!isAuthenticated) {
-    // For unauthenticated users, only allow specific models
-    if (!NON_AUTH_ALLOWED_MODELS.includes(model)) {
-      throw new Error(
-        "This model requires authentication. Please sign in to access more models."
-      )
-    }
-  } else {
-    // For authenticated users, check API key requirements
-    const provider = getProviderForModel(model)
-
-    if (provider !== "ollama") {
-      const userApiKey = await getUserKey(
-        userId,
-        provider as ProviderWithoutOllama
-      )
-
-      // If no API key and model is not in free list, deny access
-      if (!userApiKey && !FREE_MODELS_IDS.includes(model)) {
-        throw new Error(
-          `This model requires an API key for ${provider}. Please add your API key in settings or use a free model.`
-        )
-      }
-    }
+  // Only Ollama models are supported - all are allowed
+  const provider = getProviderForModel(model)
+  
+  if (provider !== "ollama") {
+    throw new Error("Only Ollama models are supported in this local-only setup.")
   }
 
-  // Check usage limits for the model
-  await checkUsageByModel(supabase, userId, model, isAuthenticated)
-
-  return supabase
+  // In SQLite mode, no usage tracking needed
+  return dbClient
 }
 
 export async function incrementMessageCount({
   supabase,
   userId,
 }: {
-  supabase: SupabaseClientType
+  supabase: DatabaseClientType
   userId: string
 }): Promise<void> {
-  if (!supabase) return
-
-  try {
-    await incrementUsage(supabase, userId)
-  } catch (err) {
-    console.error("Failed to increment message count:", err)
-    // Don't throw error as this shouldn't block the chat
-  }
+  // SQLite mode - no usage tracking needed
+  return
 }
 
 export async function logUserMessage({
@@ -80,19 +58,24 @@ export async function logUserMessage({
   isAuthenticated,
   message_group_id,
 }: LogUserMessageParams): Promise<void> {
-  if (!supabase) return
+  try {
+    const messageId = crypto.randomUUID()
+    const message = {
+      id: messageId,
+      chat_id: chatId,
+      role: "user",
+      content: sanitizeUserInput(content),
+      experimental_attachments: attachments ? JSON.stringify(attachments) : null,
+      created_at: new Date().toISOString(),
+      message_group_id: message_group_id || null,
+      model: model || null,
+    }
 
-  const { error } = await supabase.from("messages").insert({
-    chat_id: chatId,
-    role: "user",
-    content: sanitizeUserInput(content),
-    experimental_attachments: attachments,
-    user_id: userId,
-    message_group_id,
-  })
-
-  if (error) {
-    console.error("Error saving user message:", error)
+    // Database functionality removed
+    return
+  } catch (error) {
+    console.error("User message save failed:", error)
+    throw error
   }
 }
 
@@ -103,16 +86,19 @@ export async function storeAssistantMessage({
   message_group_id,
   model,
 }: StoreAssistantMessageParams): Promise<void> {
-  if (!supabase) return
+  console.log(`[Store Debug] Storing ${messages.length} messages for chat ${chatId}`)
+  const assistantMessages = messages.filter(m => m.role === 'assistant')
+  console.log(`[Store Debug] Found ${assistantMessages.length} assistant messages`)
+  assistantMessages.forEach((msg, i) => {
+    console.log(`[Store Debug] Assistant message ${i}: experimental_attachments = ${(msg as any).experimental_attachments?.length || 0}`)
+  })
+
+  // SQLite-only mode
   try {
-    await saveFinalAssistantMessage(
-      supabase,
-      chatId,
-      messages,
-      message_group_id,
-      model
-    )
-  } catch (err) {
-    console.error("Failed to save assistant messages:", err)
+    await saveFinalAssistantMessageToSQLite(chatId, messages, message_group_id, model)
+    console.log('[SQLite] Assistant messages saved successfully')
+  } catch (error) {
+    console.error("SQLite assistant message save failed:", error)
+    throw error
   }
 }

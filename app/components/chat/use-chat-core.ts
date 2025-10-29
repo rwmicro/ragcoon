@@ -1,6 +1,7 @@
 import { useChatDraft } from "@/app/hooks/use-chat-draft"
 import { toast } from "@/components/ui/toast"
 import { getOrCreateGuestUserId } from "@/lib/api"
+// Cache functionality removed
 import { MESSAGE_MAX_LENGTH, SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { Attachment } from "@/lib/file-handling"
 import { API_ROUTE_CHAT } from "@/lib/routes"
@@ -9,6 +10,7 @@ import type { Message } from "@ai-sdk/react"
 import { useChat } from "@ai-sdk/react"
 import { useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { activeBlobUrls } from "./use-file-upload"
 
 type UseChatCoreProps = {
   initialMessages: Message[]
@@ -21,7 +23,6 @@ type UseChatCoreProps = {
     files: File[]
   ) => Array<{ name: string; contentType: string; url: string }>
   setFiles: (files: File[]) => void
-  checkLimitsAndNotify: (uid: string) => Promise<boolean>
   cleanupOptimisticAttachments: (attachments?: Array<{ url?: string }>) => void
   ensureChatExists: (uid: string, input: string) => Promise<string | null>
   handleFileUploads: (
@@ -42,7 +43,6 @@ export function useChatCore({
   files,
   createOptimisticAttachments,
   setFiles,
-  checkLimitsAndNotify,
   cleanupOptimisticAttachments,
   ensureChatExists,
   handleFileUploads,
@@ -52,13 +52,12 @@ export function useChatCore({
 }: UseChatCoreProps) {
   // State management
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasDialogAuth, setHasDialogAuth] = useState(false)
   const [enableSearch, setEnableSearch] = useState(false)
 
   // Refs and derived state
   const hasSentFirstMessageRef = useRef(false)
   const prevChatIdRef = useRef<string | null>(chatId)
-  const isAuthenticated = useMemo(() => !!user?.id, [user?.id])
+const isAuthenticated = true
   const systemPrompt = useMemo(
     () => user?.system_prompt || SYSTEM_PROMPT_DEFAULT,
     [user?.system_prompt]
@@ -84,7 +83,7 @@ export function useChatCore({
     })
   }, [])
 
-  // Initialize useChat
+  // Initialize useChat with static body - we'll override it in individual calls
   const {
     messages,
     input,
@@ -111,19 +110,40 @@ export function useChatCore({
     }
   }, [prompt, setInput])
 
-  // Reset messages when navigating from a chat to home
-  if (
-    prevChatIdRef.current !== null &&
-    chatId === null &&
-    messages.length > 0
-  ) {
-    setMessages([])
-  }
-  prevChatIdRef.current = chatId
+  // Reset messages when navigating from a chat to home with memory cleanup
+  const prevMessagesLengthRef = useRef(0)
 
-  // Submit action
+  useEffect(() => {
+    if (
+      prevChatIdRef.current !== null &&
+      chatId === null &&
+      messages.length > 0
+    ) {
+      // Clear messages and force cleanup
+      setMessages([])
+
+      // Clear cache for previous chat if it was large
+      if (prevChatIdRef.current && prevMessagesLengthRef.current > 50) {
+        // Cache functionality removed
+      }
+
+      // Force garbage collection hint
+      if (global.gc) global.gc()
+    }
+
+    // Reset hasSentFirstMessageRef when switching chats
+    if (prevChatIdRef.current !== chatId) {
+      hasSentFirstMessageRef.current = false
+    }
+
+    prevChatIdRef.current = chatId
+    prevMessagesLengthRef.current = messages.length
+  }, [chatId, messages.length, setMessages])
+
+  // Submit action with memory optimization
   const submit = useCallback(async () => {
     setIsSubmitting(true)
+    hasSentFirstMessageRef.current = true
 
     const uid = await getOrCreateGuestUserId(user)
     if (!uid) {
@@ -132,32 +152,45 @@ export function useChatCore({
     }
 
     const optimisticId = `optimistic-${Date.now().toString()}`
-    const optimisticAttachments =
-      files.length > 0 ? createOptimisticAttachments(files) : []
+    
+    // Optimize attachments creation to avoid duplication
+    const optimisticAttachments = files.length > 0 ? createOptimisticAttachments(files) : null
 
     const optimisticMessage = {
       id: optimisticId,
       content: input,
       role: "user" as const,
       createdAt: new Date(),
-      experimental_attachments:
-        optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
+      experimental_attachments: optimisticAttachments || undefined,
     }
 
-    setMessages((prev) => [...prev, optimisticMessage])
+    // Use functional update to avoid closure issues
+    setMessages((prev) => {
+      const newMessages = [...prev, optimisticMessage]
+
+      // Limit message history in memory to prevent bloat (reduced from 100 to 50)
+      const MAX_MESSAGES_IN_MEMORY = 50
+      if (newMessages.length > MAX_MESSAGES_IN_MEMORY) {
+        // Clean up attachments from messages being removed
+        const removedMessages = newMessages.slice(0, newMessages.length - MAX_MESSAGES_IN_MEMORY)
+        removedMessages.forEach(msg => {
+          if (msg.experimental_attachments) {
+            cleanupOptimisticAttachments(msg.experimental_attachments as any)
+          }
+        })
+
+        return newMessages.slice(-MAX_MESSAGES_IN_MEMORY)
+      }
+      return newMessages
+    })
+    
     setInput("")
 
-    const submittedFiles = [...files]
+    // Clear files immediately and copy reference
+    const submittedFiles = files.slice() // Shallow copy
     setFiles([])
 
     try {
-      const allowed = await checkLimitsAndNotify(uid)
-      if (!allowed) {
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
-        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
-        return
-      }
-
       const currentChatId = await ensureChatExists(uid, input)
       if (!currentChatId) {
         setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
@@ -200,20 +233,34 @@ export function useChatCore({
       }
 
       handleSubmit(undefined, options)
+      // Remove optimistic message efficiently
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      
+      // Cleanup attachments and cache the real message
+      if (optimisticMessage.experimental_attachments) {
+        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      }
+      
+      // Cache the message and clear draft
       cacheAndAddMessage(optimisticMessage)
       clearDraft()
 
-      if (messages.length > 0) {
-        bumpChat(currentChatId)
-      }
-    } catch {
+      // Always bump chat to ensure it appears in sidebar
+      bumpChat(currentChatId)
+    } catch (error) {
+      console.error('Submit error:', error)
       setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-      cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      
+      if (optimisticMessage.experimental_attachments) {
+        cleanupOptimisticAttachments(optimisticMessage.experimental_attachments)
+      }
+      
       toast({ title: "Failed to send message", status: "error" })
     } finally {
       setIsSubmitting(false)
+      
+      // Force garbage collection hint
+      if (global.gc) global.gc()
     }
   }, [
     user,
@@ -223,7 +270,6 @@ export function useChatCore({
     setMessages,
     setInput,
     setFiles,
-    checkLimitsAndNotify,
     cleanupOptimisticAttachments,
     ensureChatExists,
     handleFileUploads,
@@ -243,6 +289,7 @@ export function useChatCore({
   const handleSuggestion = useCallback(
     async (suggestion: string) => {
       setIsSubmitting(true)
+      hasSentFirstMessageRef.current = true
       const optimisticId = `optimistic-${Date.now().toString()}`
       const optimisticMessage = {
         id: optimisticId,
@@ -258,12 +305,6 @@ export function useChatCore({
 
         if (!uid) {
           setMessages((prev) => prev.filter((msg) => msg.id !== optimisticId))
-          return
-        }
-
-        const allowed = await checkLimitsAndNotify(uid)
-        if (!allowed) {
-          setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
           return
         }
 
@@ -304,32 +345,63 @@ export function useChatCore({
       selectedModel,
       user,
       append,
-      checkLimitsAndNotify,
       isAuthenticated,
       setMessages,
       setIsSubmitting,
     ]
   )
 
-  // Handle reload
+  // Handle reload - call reload with proper body parameters
   const handleReload = useCallback(async () => {
-    const uid = await getOrCreateGuestUserId(user)
-    if (!uid) {
+    console.log('[DEBUG] handleReload called')
+    console.log('[DEBUG] Current status:', status)
+    console.log('[DEBUG] Messages length:', messages.length)
+    console.log('[DEBUG] ChatId:', chatId)
+    
+    if (messages.length === 0) {
+      console.log('[DEBUG] No messages to reload')
       return
     }
 
-    const options = {
-      body: {
-        chatId,
-        userId: uid,
-        model: selectedModel,
-        isAuthenticated,
-        systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
-      },
+    // Find the last assistant message
+    const lastMessage = messages[messages.length - 1]
+    console.log('[DEBUG] Last message:', { role: lastMessage.role, id: lastMessage.id, content: lastMessage.content?.substring(0, 100) })
+    
+    if (lastMessage.role !== 'assistant') {
+      console.log('[DEBUG] Last message is not from assistant, cannot reload')
+      return
     }
 
-    reload(options)
-  }, [user, chatId, selectedModel, isAuthenticated, systemPrompt, reload])
+    console.log('[DEBUG] About to call reload() function')
+    console.log('[DEBUG] Reload function type:', typeof reload)
+    
+    try {
+      const uid = await getOrCreateGuestUserId(user)
+      if (!uid) {
+        console.error('[DEBUG] Could not get user ID')
+        return
+      }
+      
+      console.log('[DEBUG] Got user ID:', uid)
+      
+      const options = {
+        body: {
+          chatId,
+          userId: uid,
+          model: selectedModel,
+          isAuthenticated,
+          systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
+        },
+      }
+      
+      console.log('[DEBUG] Calling reload with options:', options)
+      const result = reload(options)
+      console.log('[DEBUG] Reload function returned:', result)
+    } catch (error) {
+      console.error('[DEBUG] Error during reload:', error)
+      handleError(error as Error)
+    }
+  }, [messages, reload, handleError, status, chatId, user, selectedModel, isAuthenticated, systemPrompt])
 
   // Handle input change - now with access to the real setInput function!
   const { setDraftValue } = useChatDraft(chatId)
@@ -348,7 +420,7 @@ export function useChatCore({
     handleSubmit,
     status,
     error,
-    reload,
+    reload: handleReload, // Use wrapped reload function
     stop,
     setMessages,
     setInput,
@@ -360,8 +432,6 @@ export function useChatCore({
     // Component state
     isSubmitting,
     setIsSubmitting,
-    hasDialogAuth,
-    setHasDialogAuth,
     enableSearch,
     setEnableSearch,
 

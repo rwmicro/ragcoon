@@ -155,20 +155,20 @@ export function MessageUser({
         </div>
       ) : (
         <MessageContent
-          className="bg-accent relative max-w-[70%] rounded-3xl px-5 py-2.5"
+          className="bg-accent relative max-w-[70%] rounded-3xl px-5 py-2.5 text-base prose prose-headings:text-foreground dark:prose-headings:text-white prose-li:text-foreground dark:prose-li:text-gray-200 prose-ul:text-foreground dark:prose-ul:text-gray-200 prose-ol:text-foreground dark:prose-ol:text-gray-200"
           markdown={true}
           ref={contentRef}
           components={{
             code: ({ children }) => <>{children}</>,
             pre: ({ children }) => <>{children}</>,
-            h1: ({ children }) => <p>{children}</p>,
-            h2: ({ children }) => <p>{children}</p>,
-            h3: ({ children }) => <p>{children}</p>,
-            h4: ({ children }) => <p>{children}</p>,
-            h5: ({ children }) => <p>{children}</p>,
-            h6: ({ children }) => <p>{children}</p>,
-            p: ({ children }) => <p>{children}</p>,
-            li: ({ children }) => <p>- {children}</p>,
+            h1: ({ children }) => <p className="text-lg font-semibold text-foreground dark:text-white">{children}</p>,
+            h2: ({ children }) => <p className="text-base font-medium text-foreground dark:text-white">{children}</p>,
+            h3: ({ children }) => <p className="text-base font-medium text-foreground dark:text-white">{children}</p>,
+            h4: ({ children }) => <p className="text-base font-medium text-foreground dark:text-white">{children}</p>,
+            h5: ({ children }) => <p className="text-base font-medium text-foreground dark:text-white">{children}</p>,
+            h6: ({ children }) => <p className="text-base font-medium text-foreground dark:text-white">{children}</p>,
+            p: ({ children }) => <p className="text-base">{children}</p>,
+            li: ({ children }) => <p className="text-base text-foreground dark:text-gray-200">- {children}</p>,
             ul: ({ children }) => <>{children}</>,
             ol: ({ children }) => <>{children}</>,
           }}
@@ -176,7 +176,7 @@ export function MessageUser({
           {children}
         </MessageContent>
       )}
-      <MessageActions className="flex gap-0 opacity-0 transition-opacity duration-0 group-hover:opacity-100">
+      <MessageActions className="flex gap-0 opacity-100">
         <MessageAction tooltip={copied ? "Copied!" : "Copy text"} side="bottom">
           <button
             className="hover:bg-accent/60 text-muted-foreground hover:text-foreground flex size-7.5 items-center justify-center rounded-full bg-transparent transition"
