@@ -1,5 +1,5 @@
 import { Message as MessageType } from "@ai-sdk/react"
-import React, { useState, useEffect, useRef } from "react"
+import React, { memo, useMemo, useState, useEffect, useRef } from "react"
 import { MessageAssistant } from "./message-assistant"
 import { MessageUser } from "./message-user"
 
@@ -22,7 +22,7 @@ type MessageProps = {
   chatId?: string | null
 }
 
-export function Message({
+export const Message = memo(function Message({
   variant,
   children,
   id,
@@ -82,30 +82,27 @@ export function Message({
     )
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const ragModelName = useMemo(
+    () => currentModel?.startsWith('rag:') ? currentModel.replace('rag:', '') : undefined,
+    [currentModel]
+  )
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const enhancedAttachments = useMemo(() => {
+    const base = attachments || []
+    if (!streamData || !Array.isArray(streamData)) return base
+    const ragSourcesData = streamData.find((item: any) => item?.type === 'rag_sources')
+    if (!ragSourcesData?.sources) return base
+    const sourcesBase64 = Buffer.from(JSON.stringify(ragSourcesData.sources)).toString('base64')
+    return [...base, {
+      name: '__rag_sources__',
+      contentType: 'application/json',
+      url: `data:application/json;base64,${sourcesBase64}`,
+    }]
+  }, [attachments, streamData])
+
   if (variant === "assistant") {
-    // Extract RAG model name if this is a RAG model
-    const ragModelName = currentModel?.startsWith('rag:')
-      ? currentModel.replace('rag:', '')
-      : undefined
-
-    // Extract RAG sources from streamData and convert to attachment format
-    let enhancedAttachments = attachments || []
-    if (streamData && Array.isArray(streamData)) {
-      // Find rag_sources in streamData
-      const ragSourcesData = streamData.find((item: any) => item?.type === 'rag_sources')
-      if (ragSourcesData?.sources) {
-        // Create a synthetic attachment with the sources
-        const sourcesJson = JSON.stringify(ragSourcesData.sources)
-        const sourcesBase64 = Buffer.from(sourcesJson).toString('base64')
-        const ragAttachment = {
-          name: '__rag_sources__',
-          contentType: 'application/json',
-          url: `data:application/json;base64,${sourcesBase64}`
-        }
-        enhancedAttachments = [...enhancedAttachments, ragAttachment]
-      }
-    }
-
     return (
       <MessageAssistant
         copied={copied}
@@ -128,4 +125,4 @@ export function Message({
   }
 
   return null
-}
+})

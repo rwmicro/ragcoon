@@ -18,7 +18,7 @@ export class HuggingFaceProvider implements ModelProvider {
 
   constructor(baseUrl: string = "https://api-inference.huggingface.co", apiKey?: string) {
     this.baseUrl = baseUrl
-    this.apiKey = apiKey || process.env.NEXT_PUBLIC_HF_API_KEY
+    this.apiKey = apiKey || process.env.HF_API_KEY
   }
 
   async listModels(): Promise<Model[]> {

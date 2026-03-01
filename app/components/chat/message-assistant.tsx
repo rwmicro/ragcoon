@@ -11,9 +11,10 @@ import { useFeedbackStore } from "@/lib/feedback-store"
 import { cn } from "@/lib/utils"
 import type { Message as MessageAISDK } from "@ai-sdk/react"
 import { ArrowClockwise, Check, Copy, SpeakerHigh, Stop, Database, X, CaretDown, CaretRight, ThumbsUp, ThumbsDown, Warning, Lightbulb } from "@phosphor-icons/react"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
-import { getSources } from "./get-sources"
+import { getSources, getWebSources } from "./get-sources"
+import { WebSourceBubbles } from "./web-source-bubbles"
 import { QuoteButton } from "./quote-button"
 import { Reasoning } from "./reasoning"
 import { SearchImages } from "./search-images"
@@ -72,55 +73,43 @@ export function MessageAssistant({
   const { getFeedback, addFeedback, updateFeedback } = useFeedbackStore()
   const feedback = getFeedback(messageId)
   const { exportAsMarkdown, copyConversationLink } = useExport()
-  const sources = getSources(parts)
-  const toolInvocationParts = parts?.filter(
-    (part) => part.type === "tool-invocation"
+  const sources = useMemo(() => getSources(parts), [parts])
+  const webSources = useMemo(() => getWebSources(parts), [parts])
+  const toolInvocationParts = useMemo(
+    () => parts?.filter((part) => part.type === "tool-invocation"),
+    [parts]
+  )
+  const hasWebSearchTool = useMemo(
+    () => toolInvocationParts?.some((part) => part.toolInvocation?.toolName === "web_search"),
+    [toolInvocationParts]
+  )
+  const reasoningParts = useMemo(
+    () => parts?.find((part) => part.type === "reasoning"),
+    [parts]
   )
 
-  // Check if there's a web_search tool (should always show)
-  const hasWebSearchTool = toolInvocationParts?.some(
-    (part) => part.toolInvocation?.toolName === "web_search"
-  )
-
-  const reasoningParts = parts?.find((part) => part.type === "reasoning")
   const contentNullOrEmpty = children === null || children === ""
   const isLastStreaming = status === "streaming" && isLast
 
-  // Extract RAG sources from attachments
-  const ragSources: ExtractedSource[] = attachments
-    ?.filter(attachment => {
-      return attachment.name === '__rag_sources__'
-    })
-    ?.map(attachment => {
-      try {
-        // Get the URL field (AI SDK standard)
-        const url = attachment.url
-
-        if (!url) {
-          console.warn('[MessageAssistant] No url field in RAG sources attachment')
+  // Extract RAG sources from attachments — base64 decode only when attachments change
+  const ragSources = useMemo((): ExtractedSource[] => {
+    return attachments
+      ?.filter(a => a.name === '__rag_sources__')
+      ?.map(attachment => {
+        try {
+          const url = attachment.url
+          if (!url) return []
+          if (url.startsWith('data:')) {
+            const base64Data = url.split(',')[1]
+            if (base64Data) return JSON.parse(atob(base64Data)) as ExtractedSource[]
+          }
+          return JSON.parse(url) as ExtractedSource[]
+        } catch {
           return []
         }
-
-        // If it's a data URL, decode it
-        if (url.startsWith('data:')) {
-          // Extract the base64 part after the comma
-          const base64Data = url.split(',')[1]
-          if (base64Data) {
-            const decodedJson = atob(base64Data)
-            const parsed = JSON.parse(decodedJson) as ExtractedSource[]
-            return parsed
-          }
-        }
-
-        // Fallback: try direct parsing if it's already JSON
-        const parsed = JSON.parse(url) as ExtractedSource[]
-        return parsed
-      } catch (error) {
-        console.error('[MessageAssistant] Failed to parse RAG sources:', error)
-        return []
-      }
-    })
-    .flat() || []
+      })
+      .flat() || []
+  }, [attachments])
 
   const hasRagSources = ragSources.length > 0
   const [openSourceIndex, setOpenSourceIndex] = useState<number | null>(null)
@@ -142,23 +131,26 @@ export function MessageAssistant({
     }
   }, [openSourceIndex])
 
-  const searchImageResults =
-    parts
-      ?.filter(
-        (part) =>
+  const searchImageResults = useMemo(
+    () =>
+      parts
+        ?.filter(
+          (part) =>
+            part.type === "tool-invocation" &&
+            part.toolInvocation?.state === "result" &&
+            part.toolInvocation?.toolName === "imageSearch" &&
+            part.toolInvocation?.result?.content?.[0]?.type === "images"
+        )
+        .flatMap((part) =>
           part.type === "tool-invocation" &&
-          part.toolInvocation?.state === "result" &&
-          part.toolInvocation?.toolName === "imageSearch" &&
-          part.toolInvocation?.result?.content?.[0]?.type === "images"
-      )
-      .flatMap((part) =>
-        part.type === "tool-invocation" &&
-          part.toolInvocation?.state === "result" &&
-          part.toolInvocation?.toolName === "imageSearch" &&
-          part.toolInvocation?.result?.content?.[0]?.type === "images"
-          ? (part.toolInvocation?.result?.content?.[0]?.results ?? [])
-          : []
-      ) ?? []
+            part.toolInvocation?.state === "result" &&
+            part.toolInvocation?.toolName === "imageSearch" &&
+            part.toolInvocation?.result?.content?.[0]?.type === "images"
+            ? (part.toolInvocation?.result?.content?.[0]?.results ?? [])
+            : []
+        ) ?? [],
+    [parts]
+  )
 
   const isQuoteEnabled = true
   const messageRef = useRef<HTMLDivElement>(null)
@@ -218,10 +210,12 @@ export function MessageAssistant({
     }
   }, [chatId, copyConversationLink])
 
-  // Calculate confidence score from RAG sources
-  const avgSourceScore = ragSources.length > 0
-    ? ragSources.reduce((acc, s) => acc + s.score, 0) / ragSources.length
-    : 1
+  const avgSourceScore = useMemo(
+    () => ragSources.length > 0
+      ? ragSources.reduce((acc, s) => acc + s.score, 0) / ragSources.length
+      : 1,
+    [ragSources]
+  )
 
   const getConfidenceColor = (score: number) => {
     if (score >= 0.8) return "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800"
@@ -284,6 +278,11 @@ export function MessageAssistant({
 
         {/* Show web search sources */}
         {sources && sources.length > 0 && <SourcesList sources={sources} />}
+
+        {/* Web search / read_page source bubbles */}
+        {webSources.length > 0 && !isLastStreaming && (
+          <WebSourceBubbles sources={webSources} />
+        )}
 
         {/* Low Relevance Warning */}
         {showLowRelevanceWarning && (

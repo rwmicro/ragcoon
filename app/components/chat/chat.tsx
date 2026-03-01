@@ -158,7 +158,6 @@ export function Chat() {
     }),
     [
       messages,
-      messages.length, // Track length changes separately
       status,
       handleDelete,
       handleEdit,
@@ -211,12 +210,9 @@ export function Chat() {
       submit,
       isSubmitting,
       files,
-      files.length, // Track file count separately
       handleFileUpload,
       lastAssistantMessage,
       handleFileRemove,
-      chatId,
-      messages.length,
       handleModelChange,
       selectedModel,
       stop,

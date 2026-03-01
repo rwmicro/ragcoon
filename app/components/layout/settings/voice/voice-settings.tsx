@@ -184,9 +184,8 @@ export function VoiceSettings() {
         setIsConnected(false)
         console.log("⚠️ Voice API health check failed:", response.status, response.statusText)
       }
-    } catch (error) {
+    } catch {
       setIsConnected(false)
-      console.error("❌ Voice API not reachable:", error)
     }
   }
 
@@ -228,8 +227,8 @@ export function VoiceSettings() {
           setLanguages(updatedLanguages)
         }
       }
-    } catch (error) {
-      console.error("❌ Failed to fetch voices:", error)
+    } catch {
+      // voices unavailable, keep empty state
     }
   }
 

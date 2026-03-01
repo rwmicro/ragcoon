@@ -1,4 +1,27 @@
 import type { Message as MessageAISDK } from "@ai-sdk/react"
+import type { WebSource } from "./web-source-bubbles"
+
+export function getWebSources(parts: MessageAISDK["parts"]): WebSource[] {
+  const sources: WebSource[] = []
+
+  parts?.forEach((part) => {
+    if (part.type !== "tool-invocation" || part.toolInvocation.state !== "result") return
+
+    const { toolName, result } = part.toolInvocation
+
+    if (toolName === "web_search" && result?.results) {
+      result.results.forEach((r: { url: string; title: string }) => {
+        if (r.url) sources.push({ url: r.url, title: r.title || r.url })
+      })
+    }
+
+    if (toolName === "read_page" && result?.url) {
+      sources.push({ url: result.url, title: result.title || result.url })
+    }
+  })
+
+  return sources
+}
 
 export function getSources(parts: MessageAISDK["parts"]) {
   const sources = parts

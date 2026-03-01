@@ -1,4 +1,3 @@
-import { get } from "http"
 import { getOllamaModels, ollamaModels } from "./data/ollama"
 import { ModelConfig } from "./types"
 
@@ -15,7 +14,8 @@ const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 export async function getRagModels(): Promise<ModelConfig[]> {
   try {
     // Fetch collections from Python backend
-    const response = await fetch("http://127.0.0.1:8001/collections", {
+    const RAG_API_URL = process.env.NEXT_PUBLIC_RAG_API_URL || "http://127.0.0.1:8001"
+    const response = await fetch(`${RAG_API_URL}/collections`, {
       next: { revalidate: 0 }, // Disable caching
     })
 
@@ -24,7 +24,7 @@ export async function getRagModels(): Promise<ModelConfig[]> {
     }
 
     const data = await response.json()
-    const collections = data.collections || []
+    const collections = data?.collections || []
 
     if (collections.length === 0) {
       return []

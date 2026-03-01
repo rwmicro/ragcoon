@@ -1,0 +1,26 @@
+services:
+  ragcoon:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      # Ollama – defaults to the Docker host; override if running Ollama in its
+      # own container or on a remote machine.
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # RAG backend – defaults to the Docker host; override if the RAG API runs
+      # in its own container (e.g. NEXT_PUBLIC_RAG_API_URL=http://rag-api:8001).
+      NEXT_PUBLIC_RAG_API_URL: ${NEXT_PUBLIC_RAG_API_URL:-http://host.docker.internal:8001}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://host.docker.internal:8001}
+    volumes:
+      - ragcoon_data:/app/data
+    # On Linux, host.docker.internal is not automatically defined – this maps it
+    # to the host gateway so the container can reach Ollama, the RAG API, etc.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  ragcoon_data:

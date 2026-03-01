@@ -64,7 +64,7 @@ export const getOrCreateGuestUserId = async (
 
 // --- RAG API ---
 
-const RAG_API_BASE = "http://localhost:8001"
+const RAG_API_BASE = process.env.NEXT_PUBLIC_RAG_API_URL || "http://localhost:8001"
 
 export interface RAGSource {
   filename: string
@@ -128,11 +128,8 @@ export async function queryStream(
         // Skip empty lines
         if (!line.trim()) continue
 
-        console.log('[SSE Debug] Raw line:', line.substring(0, 100))
-
         if (line.startsWith("data: ")) {
           const data = line.slice(6)
-          console.log('[SSE Debug] Extracted data:', data.substring(0, 100))
 
           if (data === "[DONE]") continue
 
@@ -165,8 +162,6 @@ export async function queryStream(
               // Filter out status messages - only process content chunks
               if (json.type === "status") {
                 // Skip status messages (started, retrieving, reranking, generating, completed, etc.)
-                // Log for debugging if needed
-                console.log('[RAG Status]', json.status, json.message)
                 continue
               }
 

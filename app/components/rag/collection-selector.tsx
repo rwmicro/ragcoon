@@ -17,7 +17,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { listCollections, RAGCollection, renameCollection } from "@/lib/api/rag"
+import { listCollections, RAGCollection, renameCollection, checkHealth } from "@/lib/api/rag"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import {
@@ -48,6 +48,13 @@ export function CollectionSelector({
     const [renamingCollection, setRenamingCollection] = useState<RAGCollection | null>(null)
     const [newTitle, setNewTitle] = useState("")
     const [isRenaming, setIsRenaming] = useState(false)
+    const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null)
+
+    useEffect(() => {
+        checkHealth().then((result) => {
+            setBackendAvailable(result.status !== "unhealthy")
+        })
+    }, [])
 
     useEffect(() => {
         const fetchCollections = async () => {
@@ -98,6 +105,8 @@ export function CollectionSelector({
             setIsRenaming(false)
         }
     }
+
+    if (backendAvailable === false) return null
 
     return (
         <>

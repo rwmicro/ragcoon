@@ -44,8 +44,8 @@ const defaultPreferences: UserPreferences = {
   enableSearchShortcut: true,
   promptSuggestions: true,
   showToolInvocations: true,
-  enableTTS: true,
-  enableSTT: true,
+  enableTTS: false,
+  enableSTT: false,
 }
 
 // LocalStorage key

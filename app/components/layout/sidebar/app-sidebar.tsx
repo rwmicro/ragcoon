@@ -175,8 +175,8 @@ export function AppSidebar() {
               </TooltipTrigger>
             <HistoryTrigger
               hasSidebar={false}
-              classNameTrigger="bg-transparent hover:bg-accent/80 hover:text-foreground text-primary relative inline-flex w-full items-center rounded-md px-2 py-2 text-sm transition-colors group/search group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
               hasPopover={false}
+              hideTrigger={true}
               isHistory={isHistory}
               setHistory={setHistory}
             />

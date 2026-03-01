@@ -21,8 +21,8 @@ export async function POST(request: Request) {
 
     if (!chat) {
       return new Response(
-        JSON.stringify({ error: "Supabase not available in this deployment." }),
-        { status: 200 }
+        JSON.stringify({ error: "Failed to create chat." }),
+        { status: 503 }
       )
     }
 

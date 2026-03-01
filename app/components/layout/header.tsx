@@ -5,7 +5,6 @@ import { HeaderSidebarTrigger } from "./header-sidebar-trigger"
 import { ThemeToggle } from "./theme-toggle"
 import { Button } from "@/components/ui/button"
 import {
-  ChatsCircle,
   Database,
   Gear,
   NotePencilIcon,
@@ -92,22 +91,6 @@ export function Header({ showSidebar }: { showSidebar: boolean }) {
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>New Chat</p>
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Search */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setHistory(true)}
-                    >
-                      <ChatsCircle className="size-5" weight="duotone" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>New Search</p>
                   </TooltipContent>
                 </Tooltip>
 

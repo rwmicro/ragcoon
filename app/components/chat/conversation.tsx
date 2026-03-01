@@ -33,19 +33,11 @@ export const Conversation = memo(function Conversation({
 }: ConversationProps) {
   const initialMessageCount = useRef(messages.length)
 
-  console.log('[Conversation] Rendering with', messages.length, 'messages, status:', status, 'chatId:', chatId)
-  messages.forEach((msg, i) => {
-    console.log(`[Conversation] Message ${i}:`, msg.role, msg.id, msg.content?.toString().substring(0, 50))
-  })
-
   // Handle empty message state:
   // - If no messages and status is "ready", show empty state (user hasn't submitted yet)
   // - If no messages and status is "submitted" or "streaming", continue to render (will show loader below)
-  if ((!messages || messages.length === 0)) {
-    if (status === "ready") {
-      console.log('[Conversation] Showing empty state - status:', status, 'chatId:', chatId)
-      return <div className="h-full w-full"></div>
-    }
+  if ((!messages || messages.length === 0) && status === "ready") {
+    return <div className="h-full w-full"></div>
   }
 
   return (
@@ -80,7 +72,7 @@ export const Conversation = memo(function Conversation({
                 onReload={onReload}
                 hasScrollAnchor={hasScrollAnchor}
                 parts={message.parts}
-                status={status}
+                status={isLast ? status : "ready"}
                 onQuote={onQuote}
                 currentModel={currentModel}
                 streamData={isLast ? streamData : undefined}
@@ -92,34 +84,15 @@ export const Conversation = memo(function Conversation({
           })}
           {(() => {
             const lastMessage = messages[messages.length - 1]
-            const lastMessageIsUser = lastMessage?.role === "user"
-
-            // Show loader if:
-            // 1. Status is submitted (waiting for response to start)
-            // 2. OR status is streaming AND (no messages OR last message is from user OR last assistant message is very short)
-            const lastMessageIsEmptyOrShortAssistant = lastMessage?.role === "assistant" && (
-              !lastMessage.content ||
-              lastMessage.content === "" ||
-              (typeof lastMessage.content === 'string' && lastMessage.content.length < 5)
-            )
-
-            // Show loader during submitted phase always, or during streaming if response hasn't really started
             const shouldShowLoader =
               status === "submitted" ||
-              (status === "streaming" && (messages.length === 0 || lastMessageIsUser || lastMessageIsEmptyOrShortAssistant))
-
-            console.log('[Conversation] Loader check - status:', status,
-              'lastMsgRole:', lastMessage?.role,
-              'contentLength:', typeof lastMessage?.content === 'string'
-              ? lastMessage.content.length
-              : 'not-string',
-              'lastMsgContent:', typeof lastMessage?.content === 'string'
-              ? `"${lastMessage.content.substring(0, 30)}..."`
-              : lastMessage?.content,
-              'shouldShow:', shouldShowLoader)
-
+              (status === "streaming" && (
+                messages.length === 0 ||
+                lastMessage?.role === "user" ||
+                (lastMessage?.role === "assistant" && !lastMessage.content)
+              ))
             return shouldShowLoader ? (
-              <div className="group min-h-scroll-anchor flex w-full max-w-3xl flex-col items-start gap-2 px-6 pb-2">
+              <div className="flex w-full max-w-3xl flex-col items-start gap-2 px-6 pb-2">
                 <Loader />
               </div>
             ) : null

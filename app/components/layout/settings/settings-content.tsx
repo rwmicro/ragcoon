@@ -12,6 +12,7 @@ import {
   Microphone,
   Database,
   ListBullets,
+  Plugs,
 } from "@phosphor-icons/react"
 import { useState } from "react"
 import { InteractionPreferences } from "./appearance/interaction-preferences"
@@ -28,12 +29,13 @@ import { SystemPromptSection } from "./general/system-prompt"
 import { VoiceSettings } from "./voice/voice-settings"
 import { EnvConfigPanel } from "./backend/env-config"
 import { ModelVisibilitySettings } from "./models/model-visibility-settings"
+import { MCPSettings } from "./mcp/mcp-settings"
 
 type SettingsContentProps = {
   isDrawer?: boolean
 }
 
-type TabType = "general" | "appearance" | "connections" | "models" | "voice" | "backend"
+type TabType = "general" | "appearance" | "connections" | "models" | "voice" | "backend" | "mcp"
 
 export function SettingsContent({
   isDrawer = false,
@@ -147,6 +149,13 @@ export function SettingsContent({
                   <GearSixIcon className="size-4" />
                   <span>Backend</span>
                 </TabsTrigger>
+                <TabsTrigger
+                  value="mcp"
+                  className="flex shrink-0 items-center gap-2"
+                >
+                  <Plugs className="size-4" />
+                  <span>MCP</span>
+                </TabsTrigger>
               </TabsList>
             </div>
 
@@ -181,6 +190,10 @@ export function SettingsContent({
 
               <TabsContent value="backend" className="space-y-6 mt-0">
                 <EnvConfigPanel />
+              </TabsContent>
+
+              <TabsContent value="mcp" className="space-y-6 mt-0">
+                <MCPSettings />
               </TabsContent>
             </div>
           </div>
@@ -234,6 +247,12 @@ export function SettingsContent({
                   icon={GearSixIcon}
                   label="Backend"
                   description="Environment Config"
+                />
+                <SidebarItem
+                  value="mcp"
+                  icon={Plugs}
+                  label="MCP"
+                  description="External Tool Servers"
                 />
               </TabsList>
             </div>
@@ -294,6 +313,16 @@ export function SettingsContent({
                     <p className="text-sm text-muted-foreground">Manage RAG backend environment variables.</p>
                   </div>
                   <EnvConfigPanel />
+                </TabsContent>
+
+                <TabsContent value="mcp" className="mt-0 space-y-6">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">MCP Servers</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Connect external tool servers via the Model Context Protocol. Each enabled server exposes its tools to the model.
+                    </p>
+                  </div>
+                  <MCPSettings />
                 </TabsContent>
               </div>
             </div>

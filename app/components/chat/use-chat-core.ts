@@ -116,7 +116,6 @@ export function useChatCore({
   // This prevents the hook from reinitializing mid-submission
   useEffect(() => {
     if (chatId && !isSubmitting) {
-      console.log('[useChatCore] Updating stable ID from', stableUseChatId.current, 'to', chatId)
       stableUseChatId.current = chatId
     }
   }, [chatId, isSubmitting])
@@ -149,7 +148,6 @@ export function useChatCore({
   useEffect(() => {
     initialMessages.forEach(msg => {
       if ((msg as any).experimental_attachments) {
-        console.log('[useChat] Storing attachments for message:', msg.id, (msg as any).experimental_attachments.length, 'items')
         addAttachmentToMap(msg.id, (msg as any).experimental_attachments)
       }
     })
@@ -157,24 +155,12 @@ export function useChatCore({
 
   // Clean initialMessages BEFORE passing to useChat
   // Remove experimental_attachments to prevent AI SDK from converting them to tool_result parts
-  // BUT: Store them in the map first!
   const cleanedInitialMessages = useMemo(() => {
-    console.log('[useChat] Initial messages received:', initialMessages.length, 'messages')
-    initialMessages.forEach((msg, i) => {
-      console.log(`[useChat] Message ${i}:`, msg.role, msg.id, msg.content?.toString().substring(0, 50))
-
-      // Store attachments synchronously while processing
-      if ((msg as any).experimental_attachments) {
-        console.log('[useChat] Storing attachments during clean for message:', msg.id, (msg as any).experimental_attachments.length, 'items')
-        addAttachmentToMap(msg.id, (msg as any).experimental_attachments)
-      }
-    })
-
     return initialMessages.map(msg => {
       const { experimental_attachments, ...msgWithoutAttachments } = msg as any
       return msgWithoutAttachments
     })
-  }, [initialMessages, addAttachmentToMap])
+  }, [initialMessages])
 
   // Search params handling
   const searchParams = useSearchParams()
@@ -205,35 +191,21 @@ export function useChatCore({
 
   // Handle finish callback
   const handleFinish = useCallback(async (message: Message) => {
-    console.log('[useChat onFinish] Called with message:', message.id, 'Role:', message.role)
-
     // Store attachments in our map before they're stripped from useChat state
     if ((message as any).experimental_attachments) {
       addAttachmentToMap(message.id, (message as any).experimental_attachments)
-      console.log('[useChat onFinish] Stored attachments for message:', message.id)
     }
 
     // For RAG models, the message is already stored by the API during streaming
     // So we skip cacheAndAddMessage to avoid duplicates
-    // We only need to refresh to get the latest from DB
     const isRAGModel = selectedModel.startsWith('rag:') || !!activeCollectionId
 
     if (!isRAGModel) {
-      console.log('[useChat onFinish] Calling cacheAndAddMessage for non-RAG message...')
       await cacheAndAddMessage(message)
-      console.log('[useChat onFinish] cacheAndAddMessage completed')
-    } else {
-      console.log('[useChat onFinish] Skipping cacheAndAddMessage for RAG message (already stored by API)')
     }
 
-    // Refresh messages from DB to ensure we have the latest state
-    // This is especially important for RAG messages that were saved during streaming
-    console.log('[useChat onFinish] Refreshing messages from DB...')
     await refreshMessages()
-    console.log('[useChat onFinish] Refresh completed')
 
-    // Reset submitting state immediately now that message is saved
-    // The status from useChat will handle the UI state correctly
     isSubmittingRef.current = false
     setIsSubmitting(false)
     setRagStatus("ready")
@@ -259,56 +231,14 @@ export function useChatCore({
     api: API_ROUTE_CHAT,
     initialMessages: cleanedInitialMessages,
     initialInput: draftValue,
+    experimental_throttle: 50,
     onFinish: handleFinish,
     onError: handleError,
     onResponse: (response) => {
-      console.log('[useChat onResponse] ✅ Response received, status:', response.status, 'ok:', response.ok)
       if (!response.ok) {
-        console.error('[useChat onResponse] ❌ Response not OK:', response.statusText)
+        console.error('[useChat onResponse] Response not OK:', response.statusText)
       }
     },
-    // Send request with cleaned messages
-    fetch: async (url, options) => {
-      console.log('[useChat fetch] Called with url:', url, 'options:', options)
-      // Parse and clean the request body
-      if (options?.body) {
-        try {
-          const bodyData = JSON.parse(options.body as string)
-
-          // Clean messages in the request
-          if (bodyData.messages && Array.isArray(bodyData.messages)) {
-            bodyData.messages = bodyData.messages.map((msg: any) => {
-              if (msg.content && typeof msg.content !== 'string' && Array.isArray(msg.content)) {
-                const cleanedContent = msg.content.filter((part: any) => {
-                  if (part.type === 'tool_result' || part.type === 'tool-result') {
-                    console.log('[useChat fetch] Filtering out tool_result from message:', msg.id)
-                    return false
-                  }
-                  return true
-                })
-
-                return {
-                  ...msg,
-                  content: cleanedContent.length > 0 ? cleanedContent : (typeof msg.content === 'string' ? msg.content : '')
-                }
-              }
-              return msg
-            })
-
-            // Update the body with cleaned messages
-            options.body = JSON.stringify(bodyData)
-          }
-        } catch (e) {
-          console.error('[useChat fetch] Failed to clean messages:', e)
-        }
-      }
-
-      // Call the original fetch
-      console.log('[useChat fetch] About to call actual fetch')
-      const result = await fetch(url, options)
-      console.log('[useChat fetch] Fetch returned, status:', result.status, 'ok:', result.ok)
-      return result
-    }
   })
 
   // Update messagesRef whenever messages change
@@ -338,45 +268,22 @@ export function useChatCore({
     }
   }, [prompt, setInput])
 
-  // Log status changes
-  useEffect(() => {
-    console.log('[useChat] 🔄 STATUS CHANGED TO:', status, '| Messages count:', messages.length, '| isSubmitting:', isSubmitting)
-    if (status === 'streaming') {
-      console.log('[useChat] 🌊 STREAMING STARTED!')
-    }
-    if (status === 'submitted') {
-      console.log('[useChat] 📤 SUBMITTED - waiting for response')
-    }
-    if (status === 'ready') {
-      console.log('[useChat] ✅ READY')
-    }
-  }, [status, messages.length, isSubmitting])
-
   // Sync messages from initialMessages when they change
   useEffect(() => {
-    console.log('[useChat Sync Effect] Status:', status, 'Messages:', messages.length, 'InitialMessages:', initialMessages.length, 'isSubmitting:', isSubmitting)
-
     // CRITICAL: Don't sync during streaming/submission - it will wipe out the assistant's response!
-    // But DO allow syncs when status is ready (this is safe and necessary for loading messages)
     if (status === 'streaming' || status === 'submitted' || isSubmitting) {
-      console.log('[useChat Sync Effect] SKIPPING sync - currently streaming/submitted/submitting')
       return
     }
 
     // CRITICAL: Don't sync when we have MORE messages than provider
     // This means we have unsaved streaming messages that are about to be saved by onFinish
     if (messages.length > initialMessages.length) {
-      console.log('[useChat Sync Effect] SKIPPING sync - we have MORE messages than provider (', messages.length, '>', initialMessages.length, ') - likely unsaved streaming messages')
       return
     }
 
     // Only update if initialMessages has MORE content than current messages
-    // This handles cases like: loading messages from DB, switching chats, etc.
     if (initialMessages.length > messages.length) {
-      console.log('[useChat Sync Effect] SYNCING messages from provider:', initialMessages.length, 'messages (current:', messages.length, ')')
-
-      // Attachments are already stored in cleanedInitialMessages memo
-      // But double-check they're in the map (defensive programming)
+      // Double-check attachments are in the map (defensive)
       initialMessages.forEach(msg => {
         if ((msg as any).experimental_attachments && !attachmentsMapRef.current.has(msg.id)) {
           console.warn('[useChat Sync] Attachment missing from map, storing now:', msg.id)
@@ -385,8 +292,6 @@ export function useChatCore({
       })
 
       setMessages(cleanedInitialMessages)
-    } else {
-      console.log('[useChat Sync Effect] SKIPPING sync - provider does not have more messages')
     }
   }, [initialMessages.length, messages.length, cleanedInitialMessages, setMessages, initialMessages, status, isSubmitting, addAttachmentToMap])
 
@@ -394,23 +299,13 @@ export function useChatCore({
   const prevMessagesLengthRef = useRef(0)
 
   useEffect(() => {
-    console.log('[useChat] Chat ID changed from', prevChatIdRef.current, 'to', chatId, '| Current status:', status, '| Messages:', messages.length)
-
-    // Reset hasSentFirstMessageRef when switching chats
-    // BUT: Don't reset if we're going from null to a chatId (new chat creation)
     if (prevChatIdRef.current !== chatId) {
-      // Only reset if we had a previous chatId (switching between existing chats)
-      // Don't reset if prevChatIdRef was null (creating new chat from home page)
       if (prevChatIdRef.current !== null) {
         hasSentFirstMessageRef.current = false
-        // Clear attachments map when switching chats
-        console.log('[useChat] Clearing attachments map for chat switch')
         attachmentsMapRef.current.clear()
 
         // When going to home page (chatId becomes null), clear messages and stop streaming
         if (chatId === null) {
-          console.log('[useChat] Going to home page, clearing messages and stopping stream')
-          // Only stop if we're actually streaming
           if (status === 'streaming' || status === 'submitted') {
             stop()
           }
@@ -432,8 +327,6 @@ export function useChatCore({
 
     // Only clear if NOT in RAG mode - RAG mode handles its own state
     if (chatId === null && initialMessages.length === 0 && messages.length > 0 && !isSubmitting && !isRecentSubmit && !activeCollectionId) {
-      console.log('[useChat] Home page detected with stale messages, clearing', messages.length, 'messages')
-      // Only stop if we're actually streaming
       if (status === 'streaming' || status === 'submitted') {
         stop()
       }
@@ -445,18 +338,14 @@ export function useChatCore({
   // Cleanup attachments map on unmount
   useEffect(() => {
     return () => {
-      console.log('[useChat] Component unmounting, clearing attachments map')
       attachmentsMapRef.current.clear()
     }
   }, [])
 
   // Submit action with memory optimization
   const submit = useCallback(async () => {
-    console.log('[SUBMIT] Called! Input:', input, 'Files:', files.length)
-
     // Prevent concurrent submissions (race condition protection)
     if (isSubmittingRef.current) {
-      console.log('[SUBMIT] Already submitting, ignoring duplicate call')
       return
     }
 
@@ -464,7 +353,6 @@ export function useChatCore({
     const now = Date.now()
     const timeSinceLastSubmit = now - lastSubmitTimeRef.current
     if (timeSinceLastSubmit < 500 && lastSubmitTimeRef.current > 0) {
-      console.log('[SUBMIT] Debounced - too soon after last submit')
       return
     }
     lastSubmitTimeRef.current = now
@@ -475,12 +363,10 @@ export function useChatCore({
 
     const uid = await getOrCreateGuestUserId(user)
     if (!uid) {
-      console.log('[SUBMIT] No UID, aborting')
       isSubmittingRef.current = false
       setIsSubmitting(false)
       return
     }
-    console.log('[SUBMIT] Got UID:', uid)
 
     // Track if this is a new chat creation (we're on home page)
     const isNewChat = !chatId
@@ -514,8 +400,6 @@ export function useChatCore({
 
       // Bump chat to ensure it appears in sidebar
       bumpChat(currentChatId)
-
-      console.log('[SUBMIT] New chat created:', currentChatId, '- navigated, continuing to send message')
 
       // Continue to send message immediately (no return)
     }
@@ -555,7 +439,6 @@ export function useChatCore({
 
       // --- RAG LOGIC ---
       if (activeCollectionId) {
-        console.log('[SUBMIT] RAG Mode Active for Collection:', activeCollectionId)
         setRagStatus("submitted")
 
         // 1. Add User Message
@@ -587,31 +470,44 @@ export function useChatCore({
         let accumulatedContent = ""
         let accumulatedSources: RAGSource[] = []
 
+        // Throttle state updates to rAF cadence (~60fps) instead of per-token
+        let rafId: number | null = null
+        let firstChunkReceived = false
+        const flushContentToState = () => {
+          setMessages(prev => prev.map(m =>
+            m.id === assistantMsgId
+              ? { ...m, content: accumulatedContent }
+              : m
+          ))
+          rafId = null
+        }
+
         await queryStream(
           {
             query: messageContent,
             collection_id: activeCollectionId,
-            conversation_history: messages.map(m => ({ role: m.role, content: m.content })),
+            conversation_history: messagesRef.current.map(m => ({ role: m.role, content: m.content })),
             ...mergedRagSettings
           },
-          // onChunk
+          // onChunk — first token updates immediately (hides loader), rest use rAF
           (text) => {
             accumulatedContent += text
-            setMessages(prev => prev.map(m =>
-              m.id === assistantMsgId
-                ? { ...m, content: accumulatedContent }
-                : m
-            ))
+            if (!firstChunkReceived) {
+              firstChunkReceived = true
+              flushContentToState()
+            } else if (!rafId) {
+              rafId = requestAnimationFrame(flushContentToState)
+            }
           },
           // onSources
           (sources) => {
-            console.log('[RAG] Received sources:', sources.length)
+            if (rafId) {
+              cancelAnimationFrame(rafId)
+              rafId = null
+            }
             accumulatedSources = sources
-            // Append sources marker to content
-            const sourcesJson = JSON.stringify(sources)
-            const sourcesBase64 = btoa(sourcesJson)
+            const sourcesBase64 = btoa(JSON.stringify(sources))
             const marker = `\n\n<!-- RAG_SOURCES:${sourcesBase64} -->`
-
             setMessages(prev => prev.map(m =>
               m.id === assistantMsgId
                 ? { ...m, content: accumulatedContent + marker }
@@ -620,11 +516,15 @@ export function useChatCore({
           },
           // onError
           (err) => {
+            if (rafId) { cancelAnimationFrame(rafId); rafId = null }
             console.error('[RAG] Stream error:', err)
             handleError(err)
           },
           ragAbortControllerRef.current.signal
         )
+
+        // Flush any remaining buffered content before finishing
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; flushContentToState() }
 
         // 4. Finish
         const finalContent = accumulatedContent + (accumulatedSources.length > 0
@@ -661,16 +561,10 @@ export function useChatCore({
         experimental_attachments: attachments || undefined,
       }
 
-      console.log('[SUBMIT] Calling append with message and options:', messageContent.substring(0, 50), options)
-      console.log('[SUBMIT] Current status before append:', status)
-      console.log('[SUBMIT] Current messages count before append:', messages.length)
-
       append({
         role: "user",
         content: messageContent,
       }, options)
-
-      console.log('[SUBMIT] append called successfully')
 
       // NOTE: We don't call cacheAndAddMessage here because:
       // 1. The user message is already saved by logUserMessage in the API route
@@ -705,7 +599,7 @@ export function useChatCore({
     status,
     activeCollectionId,
     ragSettings,
-    messages,
+    messagesRef,
     handleFinish,
     handleError
   ])
@@ -789,6 +683,7 @@ export function useChatCore({
           model: selectedModel,
           isAuthenticated,
           systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
+          enableSearch,
           aiSettings: {
             temperature: aiSettings.temperature,
             maxTokens: aiSettings.maxTokens,
@@ -817,9 +712,7 @@ export function useChatCore({
   )
 
   // Merge messages with their stored attachments for display
-  // Only recalculate when messages array reference changes or length changes
   const messagesWithAttachments = useMemo(() => {
-    console.log('[useChatCore] Creating messagesWithAttachments, total messages:', messages.length)
     return messages.map(msg => {
       const attachments = attachmentsMapRef.current.get(msg.id)
       if (attachments) {
@@ -830,7 +723,7 @@ export function useChatCore({
       }
       return msg
     })
-  }, [messages, messages.length])
+  }, [messages])
 
   return {
     // Chat state

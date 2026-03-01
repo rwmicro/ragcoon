@@ -18,6 +18,7 @@ type HistoryTriggerProps = {
   hasPopover?: boolean
   isHistory?: boolean
   setHistory: (open: boolean) => void
+  hideTrigger?: boolean
 }
 
 export function HistoryTrigger({
@@ -26,7 +27,8 @@ export function HistoryTrigger({
   label,
   hasPopover = true,
   setHistory,
-  isHistory
+  isHistory,
+  hideTrigger = false,
 }: HistoryTriggerProps) {
   const isMobile = useBreakpoint(768)
   const router = useRouter()
@@ -46,8 +48,8 @@ export function HistoryTrigger({
     await deleteChat(id, chatId!, () => router.push("/"))
   }
 
-  const trigger = (
-    <button className={cn(classNameTrigger)}>
+  const trigger = hideTrigger ? null : (
+    <button className={cn(classNameTrigger)} onClick={() => setHistory(true)}>
       {label || <ListMagnifyingGlass className="size-5" />}
     </button>
   )

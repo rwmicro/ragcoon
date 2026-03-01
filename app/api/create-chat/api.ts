@@ -34,22 +34,25 @@ export async function createChatInDb({
   try {
     // Save to SQLite database
     const db = await getDb()
-    await db.run(
-      `INSERT INTO chats (id, user_id, title, model, system_prompt, created_at, updated_at, project_id, public)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        chatId,
-        userId,
-        chat.title,
-        model,
-        chat.system_prompt,
-        now,
-        now,
-        projectId || null,
-        chat.public ? 1 : 0
-      ]
-    )
-    await db.close()
+    try {
+      await db.run(
+        `INSERT INTO chats (id, user_id, title, model, system_prompt, created_at, updated_at, project_id, public)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          chatId,
+          userId,
+          chat.title,
+          model,
+          chat.system_prompt,
+          now,
+          now,
+          projectId || null,
+          chat.public ? 1 : 0
+        ]
+      )
+    } finally {
+      await db.close()
+    }
   } catch (error) {
     console.error('Failed to save chat to database:', error)
     // Continue even if database save fails - chat will be stored in IndexedDB

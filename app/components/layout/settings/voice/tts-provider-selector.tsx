@@ -115,9 +115,7 @@ export function TTSProviderSelector({
         setSelectedVoice(data.available_voices[0].id)
       }
 
-    } catch (error) {
-      console.error("Error fetching providers:", error)
-      setError(error instanceof Error ? error.message : "Failed to connect")
+    } catch {
       setIsConnected(false)
     } finally {
       setIsLoading(false)

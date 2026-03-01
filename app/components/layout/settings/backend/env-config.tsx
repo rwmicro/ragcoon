@@ -22,6 +22,7 @@ import {
   Warning,
   CheckCircle,
   CircleNotch,
+  WarningCircle,
 } from "@phosphor-icons/react"
 import { cn } from "@/lib/utils"
 
@@ -68,6 +69,7 @@ export function EnvConfigPanel() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [hasChanges, setHasChanges] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<"checking" | "available" | "unavailable">("checking")
 
   useEffect(() => {
     loadConfig()
@@ -81,6 +83,7 @@ export function EnvConfigPanel() {
 
   const loadConfig = async () => {
     setIsLoading(true)
+    setBackendStatus("checking")
     try {
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_RAG_API_URL || "http://localhost:8001"}/config/env`
@@ -91,9 +94,9 @@ export function EnvConfigPanel() {
       const data = await response.json()
       setConfig(data.config)
       setOriginalConfig(data.config)
-    } catch (error) {
-      console.error("Failed to load config:", error)
-      toast.error("Failed to load backend configuration")
+      setBackendStatus("available")
+    } catch {
+      setBackendStatus("unavailable")
     } finally {
       setIsLoading(false)
     }
@@ -143,10 +146,37 @@ export function EnvConfigPanel() {
     }))
   }
 
-  if (isLoading) {
+  if (backendStatus === "checking") {
     return (
       <div className="flex items-center justify-center py-12">
         <CircleNotch className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (backendStatus === "unavailable") {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <WarningCircle size={48} className="text-destructive opacity-80" />
+          <div>
+            <p className="text-foreground text-lg font-medium">Backend unavailable</p>
+            <p className="text-muted-foreground mt-1 text-sm">
+              The RAG backend could not be reached on{" "}
+              <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
+                {process.env.NEXT_PUBLIC_RAG_API_URL || "http://localhost:8001"}
+              </code>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadConfig}
+            className="hover:bg-accent text-foreground inline-flex items-center gap-2 rounded-md border px-4 py-2 text-sm transition-colors"
+          >
+            <ArrowsClockwise size={14} />
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
