@@ -4,9 +4,8 @@ import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import { getMCPTools } from "@/lib/mcp/client"
 import { pageReaderTools, webSearchTools } from "@/lib/tools/web-search"
 import { Attachment } from "@ai-sdk/ui-utils"
-import { Message as MessageAISDK, streamText, ToolSet } from "ai"
+import { extractReasoningMiddleware, Message as MessageAISDK, streamText, ToolSet, wrapLanguageModel } from "ai"
 import {
-  incrementMessageCount,
   logUserMessage,
   storeAssistantMessage,
   validateAndTrackUsage,
@@ -14,6 +13,16 @@ import {
 import { createErrorResponse, extractErrorMessage } from "./utils"
 
 export const maxDuration = 60
+
+function extractMessageText(content: string | any[]): string {
+  if (typeof content === "string") return content
+  if (Array.isArray(content)) {
+    return (content as any[])
+      .map((part: any) => (typeof part === "string" ? part : part.text || ""))
+      .join("")
+  }
+  return ""
+}
 
 type ChatRequest = {
   messages: MessageAISDK[]
@@ -118,15 +127,10 @@ export async function POST(req: Request) {
     })
 
     const userMessage = messages[messages.length - 1]
-    const contentStr = typeof userMessage.content === 'string'
-      ? userMessage.content
-      : Array.isArray(userMessage.content)
-        ? userMessage.content.map((part: any) => typeof part === 'string' ? part : part.text || '').join('')
-        : ''
+    const contentStr = extractMessageText(userMessage.content)
 
     const [allModels] = await Promise.all([
       getAllModels(),
-      validation ? incrementMessageCount({ validation, userId }) : Promise.resolve(),
       userMessage?.role === 'user' ? logUserMessage({
         validation,
         userId,
@@ -151,12 +155,7 @@ export async function POST(req: Request) {
     // RAG model handling - proxy to Python backend
     if (modelConfig.isRAG || model.startsWith('rag:')) {
 
-      const userMessage = messages[messages.length - 1]
-      const rawQuery = typeof userMessage.content === 'string'
-        ? userMessage.content
-        : Array.isArray(userMessage.content)
-          ? userMessage.content.map(part => typeof part === 'string' ? part : (part as any).text || '').join('')
-          : ''
+      const rawQuery = extractMessageText(userMessage.content)
 
       const query = rawQuery.trim().slice(0, 10_000)
       if (!query) {
@@ -169,11 +168,7 @@ export async function POST(req: Request) {
       // Extract conversation history (excluding the current user message)
       const conversationHistory = messages.slice(0, -1).map(msg => ({
         role: msg.role,
-        content: typeof msg.content === 'string'
-          ? msg.content
-          : Array.isArray(msg.content)
-            ? msg.content.map(part => typeof part === 'string' ? part : (part as any).text || '').join('')
-            : ''
+        content: extractMessageText(msg.content),
       }))
 
       // Create streaming response from Python backend
@@ -394,8 +389,12 @@ When you do use web search:
     }
 
     const hasTools = Object.keys(tools).length > 0
-    const result = streamText({
+    const sdkModel = wrapLanguageModel({
       model: modelConfig.apiSdk(apiKey, { enableSearch: shouldEnableWebSearch }),
+      middleware: extractReasoningMiddleware({ tagName: 'think' }),
+    })
+    const result = streamText({
+      model: sdkModel,
       system: effectiveSystemPrompt,
       messages: enhancedMessages as MessageAISDK[],
       ...(hasTools ? { tools, maxSteps: 10 } : {}),

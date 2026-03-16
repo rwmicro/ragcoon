@@ -29,44 +29,13 @@ export function ButtonFileUpload({
 }: ButtonFileUploadProps) {
   const { models } = useModel()
   const currentModel = models.find((m) => m.id === model)
-  const isFileUploadAvailable = currentModel?.vision
-
-  if (!isFileUploadAvailable) {
-    return (
-      <Popover>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="border-border dark:bg-secondary size-9 rounded-full border bg-transparent"
-                type="button"
-                aria-label="Add files"
-              >
-                <Paperclip className="size-4" />
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Add files</TooltipContent>
-        </Tooltip>
-        <PopoverContent className="p-2">
-          <div className="text-secondary-foreground text-sm">
-            This model does not support file uploads.
-            <br />
-            Please select another model.
-          </div>
-        </PopoverContent>
-      </Popover>
-    )
-  }
 
 
   return (
     <FileUpload
       onFilesAdded={onFileUpload}
       multiple
-      accept=".txt,.md,image/jpeg,image/png,image/gif,image/webp,image/svg,image/heic,image/heif,video/mp4,video/webm,video/quicktime,.avi,.wmv,.3gp,.flv,.mkv"
+      accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.txt,.md,.csv,.json,.xml,.yaml,.yml,.toml,.py,.js,.ts,.jsx,.tsx,.html,.css,.scss,.java,.c,.cpp,.h,.cs,.go,.rs,.rb,.php,.sh,.bash,.zsh,.sql"
     >
       <Tooltip>
         <TooltipTrigger asChild>

@@ -64,15 +64,38 @@ export function sanitizeRagContent(content: string): string {
   return DOMPurify.sanitize(content, RAG_CONFIG)
 }
 
+const ALLOWED_EXTENSIONS = new Set([
+  // Images
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'heif', 'bmp', 'svg',
+  // Videos
+  'mp4', 'webm', 'mov', 'avi', 'wmv', '3gp', 'flv', 'mkv',
+  // Documents
+  'pdf', 'txt', 'md', 'csv', 'json', 'xml', 'yaml', 'yml', 'toml',
+  // Code
+  'py', 'js', 'ts', 'jsx', 'tsx', 'html', 'css', 'scss', 'sass',
+  'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'rb', 'php',
+  'sh', 'bash', 'zsh', 'sql', 'r', 'swift', 'kt', 'dart',
+])
+
 export function sanitizeFileName(fileName: string): string {
   if (!fileName || typeof fileName !== 'string') {
     return 'unnamed_file'
   }
 
   // Remove any path traversal attempts
-  return fileName
+  const sanitized = fileName
     .replace(/\.\./g, '')
     .replace(/[\/\\]/g, '_')
     .replace(/[^a-zA-Z0-9._-]/g, '_')
-    .substring(0, 255) // Max filename length
+    .substring(0, 255)
+
+  const dotIndex = sanitized.lastIndexOf('.')
+  if (dotIndex !== -1) {
+    const ext = sanitized.slice(dotIndex + 1).toLowerCase()
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return sanitized.slice(0, dotIndex) + '.txt'
+    }
+  }
+
+  return sanitized
 }

@@ -125,11 +125,9 @@ export async function fetchAndCacheChats(userId: string): Promise<Chats[]> {
 
 export async function getCachedChats(): Promise<Chats[]> {
   const all = await readFromIndexedDB<Chats>("chats")
-  console.log('[getCachedChats] Raw IndexedDB data:', all)
   const sorted = (all as Chats[]).sort(
     (a, b) => +new Date(b.created_at || "") - +new Date(a.created_at || "")
   )
-  console.log('[getCachedChats] Sorted chats:', sorted.length, 'chats')
   return sorted
 }
 
@@ -248,7 +246,6 @@ export async function createNewChat(
     })
 
     const responseData = await res.json()
-    console.log('[createNewChatFromDb] API response:', responseData)
 
     if (!res.ok || !responseData.chat) {
       console.error('[createNewChatFromDb] API error:', responseData)
@@ -266,9 +263,7 @@ export async function createNewChat(
       project_id: responseData.chat.project_id || null,
     }
 
-    console.log('[createNewChatFromDb] Formatted chat:', chat)
     await writeToIndexedDB("chats", chat)
-    console.log('[createNewChatFromDb] Saved to IndexedDB')
     return chat
   } catch (error) {
     console.error("Error creating new chat:", error)

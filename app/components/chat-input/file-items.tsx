@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/tooltip"
 import { X, Play } from "@phosphor-icons/react"
 import Image from "next/image"
-import { useState } from "react"
+import { useState, useMemo, useEffect } from "react"
 
 type FileItemProps = {
   file: File
@@ -30,7 +30,11 @@ export function FileItem({ file, onRemove }: FileItemProps) {
 
   const isImage = file.type.startsWith("image/")
   const isVideo = file.type.startsWith("video/")
-  const fileUrl = URL.createObjectURL(file)
+  const fileUrl = useMemo(() => URL.createObjectURL(file), [file])
+
+  useEffect(() => {
+    return () => URL.revokeObjectURL(fileUrl)
+  }, [fileUrl])
   
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes}B`
@@ -48,11 +52,10 @@ export function FileItem({ file, onRemove }: FileItemProps) {
           <div className="bg-background hover:bg-accent border-input flex w-full items-center gap-3 rounded-2xl border p-2 pr-3 transition-colors">
             <div className="bg-accent-foreground flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-md relative">
               {isImage ? (
-                <Image
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
                   src={fileUrl}
                   alt={file.name}
-                  width={40}
-                  height={40}
                   className="h-full w-full object-cover"
                 />
               ) : isVideo ? (

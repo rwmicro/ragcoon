@@ -9,10 +9,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { action, chatId, data, limit, offset } = body
 
+    if (!action) {
+      return NextResponse.json({ success: false, error: 'Missing required field: action' }, { status: 400 })
+    }
+
     const db = await getDb()
-    try {
-      switch (action) {
+    switch (action) {
         case 'get': {
+          if (!chatId) {
+            return NextResponse.json({ success: false, error: 'Missing required field: chatId' }, { status: 400 })
+          }
           let query = 'SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC'
           const params: any[] = [chatId]
 
@@ -51,6 +57,9 @@ export async function POST(req: NextRequest) {
         }
 
         case 'create': {
+          if (!chatId || !data || typeof data.content === 'undefined') {
+            return NextResponse.json({ success: false, error: 'Missing required fields: chatId or data.content' }, { status: 400 })
+          }
           if (!VALID_ROLES.includes(data.role)) {
             return NextResponse.json(
               { success: false, error: `Invalid role: ${data.role}` },
@@ -78,6 +87,9 @@ export async function POST(req: NextRequest) {
         }
 
         case 'createMany': {
+          if (!chatId || !Array.isArray(data)) {
+            return NextResponse.json({ success: false, error: 'Missing required fields: chatId or data (must be array)' }, { status: 400 })
+          }
           await db.exec('BEGIN TRANSACTION')
           const stmt = await db.prepare(
             `INSERT OR IGNORE INTO messages (id, chat_id, content, role, user_id, model, parts, experimental_attachments, created_at)
@@ -109,11 +121,17 @@ export async function POST(req: NextRequest) {
         }
 
         case 'deleteAll': {
+          if (!chatId) {
+            return NextResponse.json({ success: false, error: 'Missing required field: chatId' }, { status: 400 })
+          }
           await db.run('DELETE FROM messages WHERE chat_id = ?', [chatId])
           return NextResponse.json({ success: true })
         }
 
         case 'count': {
+          if (!chatId) {
+            return NextResponse.json({ success: false, error: 'Missing required field: chatId' }, { status: 400 })
+          }
           const result = await db.get(
             'SELECT COUNT(*) as count FROM messages WHERE chat_id = ?',
             [chatId]
@@ -126,9 +144,6 @@ export async function POST(req: NextRequest) {
             { success: false, error: 'Invalid action' },
             { status: 400 }
           )
-      }
-    } finally {
-      await db.close()
     }
   } catch (error) {
     console.error('SQLite messages API error:', error)

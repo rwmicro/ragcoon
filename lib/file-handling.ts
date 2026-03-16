@@ -1,51 +1,7 @@
 import { toast } from "@/components/ui/toast"
-import * as fileType from "file-type"
 import { sanitizeFileName } from "./sanitize"
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB (increased for video support)
-
-// Blocked file types for security reasons
-const BLOCKED_FILE_TYPES = [
-  "image/svg+xml", // SVG can contain JavaScript
-  "text/html",
-  "application/x-httpd-php",
-  "application/x-sh",
-  "application/x-executable",
-]
-
-const ALLOWED_FILE_TYPES = [
-  // Images (SVG removed for security)
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-  // Videos
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-  "video/x-msvideo", // .avi
-  "video/x-ms-wmv", // .wmv
-  "video/3gpp", // .3gp
-  "video/x-flv", // .flv
-  "video/x-matroska", // .mkv
-  // Documents
-  "application/pdf",
-  "text/plain",
-  "text/markdown",
-  "application/json",
-  "text/csv",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-]
-
-// Dangerous extensions that should never be allowed
-const BLOCKED_EXTENSIONS = [
-  'exe', 'dll', 'bat', 'cmd', 'sh', 'ps1', 'vbs', 'jar',
-  'app', 'deb', 'rpm', 'dmg', 'pkg', 'run', 'bin',
-  'html', 'htm', 'svg', 'xml', 'xhtml', 'php', 'jsp', 'asp'
-]
+const MAX_FILE_SIZE = 100 * 1024 * 1024 // 100MB
 
 export type Attachment = {
   name: string
@@ -56,7 +12,6 @@ export type Attachment = {
 export async function validateFile(
   file: File
 ): Promise<{ isValid: boolean; error?: string }> {
-  // Validate file size
   if (file.size > MAX_FILE_SIZE) {
     return {
       isValid: false,
@@ -64,129 +19,33 @@ export async function validateFile(
     }
   }
 
-  // Check for empty files
   if (file.size === 0) {
-    return {
-      isValid: false,
-      error: "File is empty",
-    }
+    return { isValid: false, error: "File is empty" }
   }
 
-  // Sanitize and validate file name
-  const sanitizedName = sanitizeFileName(file.name)
-  const extension = sanitizedName.split('.').pop()?.toLowerCase()
-
-  // Check blocked extensions
-  if (extension && BLOCKED_EXTENSIONS.includes(extension)) {
-    return {
-      isValid: false,
-      error: `File extension .${extension} is not allowed for security reasons`,
-    }
-  }
-
-  // Validate file content (magic bytes)
-  try {
-    const buffer = await file.arrayBuffer()
-
-    // Check the entire file header, not just first 4100 bytes
-    const headerSize = Math.min(buffer.byteLength, 8192)
-    const type = await fileType.fileTypeFromBuffer(
-      Buffer.from(buffer.slice(0, headerSize))
-    )
-
-    // Check if detected type is blocked
-    if (type && BLOCKED_FILE_TYPES.includes(type.mime)) {
-      return {
-        isValid: false,
-        error: `File type ${type.mime} is blocked for security reasons`,
-      }
-    }
-
-    // Check if detected type is in allowed list
-    if (!type || !ALLOWED_FILE_TYPES.includes(type.mime)) {
-      return {
-        isValid: false,
-        error: "File type not supported or doesn't match its extension",
-      }
-    }
-
-    // Additional check: ensure declared type matches detected type
-    if (file.type && type.mime !== file.type) {
-      console.warn(`File type mismatch: declared=${file.type}, detected=${type.mime}`)
-      // Allow some common mismatches (e.g., text files)
-      const allowedMismatches = ['text/plain', 'text/markdown', 'application/json']
-      if (!allowedMismatches.includes(type.mime) && !allowedMismatches.includes(file.type)) {
-        return {
-          isValid: false,
-          error: "File type doesn't match its content",
-        }
-      }
-    }
-
-    return { isValid: true }
-  } catch (error) {
-    console.error('File validation error:', error)
-    return {
-      isValid: false,
-      error: 'Failed to validate file',
-    }
-  }
+  return { isValid: true }
 }
-
-// Track blob URLs for cleanup
-const activeBlobUrls = new Set<string>()
 
 export async function uploadFileToLocal(
   file: File
 ): Promise<string> {
-  // For SQLite-only mode, use data URLs for images/videos
-  // and blob URLs for other files (local preview only)
-  if (file.type.startsWith("image/") || file.type.startsWith("video/")) {
-    return await fileToDataURL(file)
-  } else {
-    const blobUrl = URL.createObjectURL(file)
-    activeBlobUrls.add(blobUrl)
-    return blobUrl
-  }
+  // Always use data URLs — the AI SDK doesn't support blob: URLs in attachments
+  return await fileToDataURL(file)
 }
 
-/**
- * Revoke a blob URL to free memory
- */
-export function revokeBlobUrl(url: string) {
-  if (url.startsWith('blob:')) {
-    try {
-      URL.revokeObjectURL(url)
-      activeBlobUrls.delete(url)
-    } catch (error) {
-      console.warn('Failed to revoke blob URL:', url, error)
-    }
+// AI SDK only supports image/*, application/pdf, and text/plain in user messages.
+// Normalize all text/code MIME types to text/plain.
+function normalizeContentType(mimeType: string): string {
+  if (mimeType.startsWith("image/") || mimeType === "application/pdf") {
+    return mimeType
   }
-}
-
-/**
- * Cleanup all active blob URLs (call on unmount)
- */
-export function cleanupAllBlobUrls() {
-  let revokedCount = 0
-  activeBlobUrls.forEach(url => {
-    try {
-      URL.revokeObjectURL(url)
-      revokedCount++
-    } catch (error) {
-      console.warn('Failed to revoke blob URL:', url)
-    }
-  })
-  activeBlobUrls.clear()
-  if (revokedCount > 0) {
-    console.log(`Cleaned up ${revokedCount} blob URLs`)
-  }
+  return "text/plain"
 }
 
 export function createAttachment(file: File, url: string): Attachment {
   return {
     name: sanitizeFileName(file.name),
-    contentType: file.type,
+    contentType: normalizeContentType(file.type),
     url,
   }
 }

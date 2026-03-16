@@ -33,7 +33,6 @@ export function ChatSessionProvider({
 
   // Wrapper for setChatId that marks updates as programmatic
   const setChatId = (newChatId: string | null) => {
-    console.log('[ChatSession] Programmatic setChatId called with:', newChatId)
     setIsProgrammaticUpdate(true)
     setChatIdInternal(newChatId)
   }
@@ -41,18 +40,14 @@ export function ChatSessionProvider({
   // Sync with URL changes (for router.push, back button, etc.)
   // BUT: Don't override programmatic updates immediately
   useEffect(() => {
-    console.log('[ChatSession] Pathname changed:', pathname, 'Extracted chatId:', urlChatId)
-
     // If this is a programmatic update, allow the URL to be out of sync temporarily
     // The caller is responsible for updating the URL via history.replaceState
     if (isProgrammaticUpdate) {
-      console.log('[ChatSession] Ignoring URL change - programmatic update in progress')
       setIsProgrammaticUpdate(false)
       return
     }
 
     if (urlChatId !== chatId) {
-      console.log('[ChatSession] Updating chatId from', chatId, 'to', urlChatId)
       setChatIdInternal(urlChatId)
     }
   }, [urlChatId, pathname, chatId, isProgrammaticUpdate])

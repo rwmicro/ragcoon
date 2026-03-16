@@ -183,17 +183,10 @@ export function ChatsProvider({
         projectId
       )
 
-      console.log('[createNewChat] Created chat:', newChat)
-      console.log('[createNewChat] Optimistic ID to replace:', optimisticId)
-
-      setChats((prev) => {
-        const updated = [
-          newChat,
-          ...prev.filter((c) => c.id !== optimisticId),
-        ]
-        console.log('[createNewChat] Updated chats state:', updated.length, 'chats')
-        return updated
-      })
+      setChats((prev) => [
+        newChat,
+        ...prev.filter((c) => c.id !== optimisticId),
+      ])
 
       return newChat
     } catch (error) {
@@ -224,43 +217,24 @@ export function ChatsProvider({
   }
 
   const bumpChat = async (id: string) => {
-    console.log('[bumpChat] Called for ID:', id)
-    console.log('[bumpChat] Current chats:', chats.length, 'chats')
-    console.log('[bumpChat] Current chat IDs:', chats.map(c => c.id))
-
     const prev = [...chats]
     const chatExists = prev.find(c => c.id === id)
-    console.log('[bumpChat] Chat exists in state:', !!chatExists)
-    
+
     if (!chatExists) {
-      console.warn('[bumpChat] Chat not found in state, refreshing chats list')
       const refreshedChats = await refreshAndReturn()
-      
-      // After refresh, try to find the chat again
       const chatExistsAfterRefresh = refreshedChats.find(c => c.id === id)
-      
       if (chatExistsAfterRefresh) {
-        console.log('[bumpChat] Chat found after refresh, proceeding with bump')
-        const updatedChats = refreshedChats.map((c) =>
-          c.id === id ? { ...c, updated_at: new Date().toISOString() } : c
-        )
-        const sorted = updatedChats.sort(
-          (a, b) => +new Date(b.updated_at || "") - +new Date(a.updated_at || "")
-        )
+        const sorted = refreshedChats
+          .map((c) => c.id === id ? { ...c, updated_at: new Date().toISOString() } : c)
+          .sort((a, b) => +new Date(b.updated_at || "") - +new Date(a.updated_at || ""))
         setChats(sorted)
-      } else {
-        console.warn('[bumpChat] Chat still not found after refresh')
       }
       return
     }
-    
-    const updatedChatWithNewUpdatedAt = prev.map((c) =>
-      c.id === id ? { ...c, updated_at: new Date().toISOString() } : c
-    )
-    const sorted = updatedChatWithNewUpdatedAt.sort(
-      (a, b) => +new Date(b.updated_at || "") - +new Date(a.updated_at || "")
-    )
-    console.log('[bumpChat] Sorted chats:', sorted.length, 'chats')
+
+    const sorted = prev
+      .map((c) => c.id === id ? { ...c, updated_at: new Date().toISOString() } : c)
+      .sort((a, b) => +new Date(b.updated_at || "") - +new Date(a.updated_at || ""))
     setChats(sorted)
   }
 

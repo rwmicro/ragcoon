@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils"
 import { AnimatePresence, motion } from "motion/react"
 import dynamic from "next/dynamic"
 import { useRouter } from "next/navigation"
-import { useCallback, useMemo, useState, useEffect } from "react"
+import { useCallback, useMemo, useState, useEffect, useRef } from "react"
 import { FileUpload, FileUploadContent } from "@/components/prompt-kit/file-upload"
 import { FileArrowUp } from "@phosphor-icons/react"
 import { useChatCore } from "./use-chat-core"
@@ -24,6 +24,7 @@ import { useFileUpload } from "./use-file-upload"
 import Image from "next/image"
 import { useTheme } from "next-themes"
 import { QueryMode, QUERY_MODES } from "@/app/components/chat-input/query-mode-selector"
+import { API_ROUTE_GENERATE_TITLE } from "@/lib/routes"
 
 // Only lazy load non-critical components
 const FeedbackWidget = dynamic(
@@ -40,6 +41,7 @@ export function Chat() {
     createNewChat,
     getChatById,
     updateChatModel,
+    updateTitle,
     bumpChat,
     isLoading: isChatsLoading,
   } = useChats()
@@ -141,6 +143,41 @@ export function Chat() {
     clearDraft,
     bumpChat,
   })
+
+  // Auto-title: generate a meaningful title after the first exchange completes
+  const autoTitleGeneratedRef = useRef(false)
+  useEffect(() => { autoTitleGeneratedRef.current = false }, [chatId])
+  useEffect(() => {
+    if (!chatId) return
+    if (status !== "ready") return
+    if (autoTitleGeneratedRef.current) return
+
+    const userMessages = messages.filter((m) => m.role === "user")
+    const assistantMessages = messages.filter((m) => m.role === "assistant")
+    if (userMessages.length !== 1 || assistantMessages.length !== 1) return
+
+    const currentTitle = currentChat?.title
+    if (currentTitle && currentTitle !== "New Chat") return
+
+    const userContent = typeof userMessages[0].content === "string"
+      ? userMessages[0].content
+      : ""
+    if (!userContent.trim()) return
+
+    autoTitleGeneratedRef.current = true
+    fetch(API_ROUTE_GENERATE_TITLE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: userContent, model: selectedModel }),
+    })
+      .then((r) => r.json())
+      .then(({ title }) => {
+        if (title && title !== "New Chat") {
+          updateTitle(chatId, title)
+        }
+      })
+      .catch(() => {/* non-critical */})
+  }, [messages.length, status, chatId, currentChat?.title, selectedModel, updateTitle])
 
   // Memoize the conversation props to prevent unnecessary rerenders
   // Reduce dependencies - only re-create when messages array or status actually changes

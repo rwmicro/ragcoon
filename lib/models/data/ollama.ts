@@ -276,8 +276,15 @@ function checkVisionCapability(modelName: string, family: string): boolean {
     name.includes("vision") ||
     name.includes("visual") ||
     name.includes("video") ||
+    name.includes("llava") ||
+    name.includes("moondream") ||
+    name.includes("bakllava") ||
+    name.includes("cogvlm") ||
+    name.includes("minicpm-v") ||
+    name.includes("-vl") ||
+    name.includes("vl-") ||
     (family === "Llama" && (name.includes("3.2") || name.includes("3.1"))) ||
-    (family === "Qwen" && (name.includes("2.5") || name.includes("vl"))) ||
+    (family === "Qwen" && (name.includes("2.5") || name.includes("3.5") || name.includes("vl"))) ||
     (family === "DeepSeek" && name.includes("vl")) ||
     name.includes("multimodal") ||
     name.includes("mm")

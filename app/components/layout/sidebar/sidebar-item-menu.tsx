@@ -13,9 +13,9 @@ import { DotsThree, PencilSimple, Trash } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { DialogDeleteChat } from "./dialog-delete-chat"
-import { exportChatAsMarkdown, exportChatAsPDF } from "@/lib/export"
+import { exportChatAsMarkdown, exportChatAsPDF, exportChatAsJSON } from "@/lib/export"
 import { DropdownMenuSeparator } from "@/components/ui/dropdown-menu"
-import { FileText, Printer } from "@phosphor-icons/react"
+import { FileText, Printer, FileCode } from "@phosphor-icons/react"
 
 type SidebarItemMenuProps = {
   chat: Chat
@@ -78,6 +78,17 @@ export function SidebarItemMenu({
           >
             <FileText size={16} className="mr-2" />
             Export Markdown
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              exportChatAsJSON(chat)
+            }}
+          >
+            <FileCode size={16} className="mr-2" />
+            Export JSON
           </DropdownMenuItem>
           <DropdownMenuItem
             className="cursor-pointer"

@@ -84,12 +84,15 @@ export const Conversation = memo(function Conversation({
           })}
           {(() => {
             const lastMessage = messages[messages.length - 1]
+            const lastMessageHasReasoning =
+              lastMessage?.role === "assistant" &&
+              lastMessage.parts?.some((p: any) => p.type === "reasoning" && p.reasoning)
             const shouldShowLoader =
               status === "submitted" ||
               (status === "streaming" && (
                 messages.length === 0 ||
                 lastMessage?.role === "user" ||
-                (lastMessage?.role === "assistant" && !lastMessage.content)
+                (lastMessage?.role === "assistant" && !lastMessage.content && !lastMessageHasReasoning)
               ))
             return shouldShowLoader ? (
               <div className="flex w-full max-w-3xl flex-col items-start gap-2 px-6 pb-2">

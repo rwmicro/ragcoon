@@ -72,6 +72,9 @@ export async function getAllModels(): Promise<ModelConfig[]> {
     return dynamicModelsCache
   } catch (error) {
     console.warn("Failed to load models:", error)
+    // Clear cache on error so next call retries instead of serving stale data
+    dynamicModelsCache = null
+    lastFetchTime = 0
     return []
   }
 }

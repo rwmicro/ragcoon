@@ -1,6 +1,15 @@
 import { getMessagesFromDb } from "./chat-store/messages/api"
 import { Chat } from "./chat-store/types"
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export async function exportChatAsMarkdown(chat: Chat) {
     const messages = await getMessagesFromDb(chat.id)
     const content = messages.map(m => {
@@ -13,6 +22,29 @@ export async function exportChatAsMarkdown(chat: Chat) {
     const a = document.createElement('a')
     a.href = url
     a.download = `${chat.title || 'chat'}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+}
+
+export async function exportChatAsJSON(chat: Chat) {
+    const messages = await getMessagesFromDb(chat.id)
+    const payload = {
+        id: chat.id,
+        title: chat.title,
+        model: chat.model,
+        created_at: chat.created_at,
+        messages: messages.map(m => ({
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+        })),
+    }
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${chat.title || 'chat'}.json`
     a.click()
     URL.revokeObjectURL(url)
 }
@@ -46,8 +78,8 @@ export async function exportChatAsPDF(chat: Chat) {
             <h1>${chat.title || 'Chat Export'}</h1>
             ${messages.map(m => `
                 <div class="message">
-                    <div class="role">${m.role}</div>
-                    <div class="content">${m.content}</div>
+                    <div class="role">${escapeHtml(m.role)}</div>
+                    <div class="content">${escapeHtml(m.content)}</div>
                 </div>
             `).join('')}
             <script>

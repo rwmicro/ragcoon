@@ -70,14 +70,8 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
         // Only update state if we're still on the same chat
         // This prevents race conditions when switching chats quickly
         if (currentChatIdRef.current === loadingChatId) {
-          console.log('[MessagesProvider] Loaded messages from DB:', fresh.length, 'for chat:', loadingChatId)
-          fresh.forEach((msg, i) => {
-            console.log(`[MessagesProvider] Message ${i}:`, msg.role, msg.id, msg.content?.toString().substring(0, 50))
-          })
           setMessages(fresh)
           setIsLoading(false)
-        } else {
-          console.log('[MessagesProvider] Chat changed during load, discarding results for:', loadingChatId)
         }
       } catch (error) {
         console.error("Failed to fetch messages:", error)
@@ -105,17 +99,10 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const cacheAndAddMessage = async (message: MessageAISDK) => {
     if (!chatId) return
 
-    console.log('[MessagesProvider] cacheAndAddMessage called for chatId:', chatId, 'Message:', message.id, 'Role:', message.role)
-    console.log('[MessagesProvider] Current messages count before add:', messages.length)
-
     try {
-      // Save to database (SQLite/Supabase) AND local cache
-      console.log('[MessagesProvider] Saving to database...')
       await addMessage(chatId, message)
-      console.log('[MessagesProvider] Database save complete')
 
       setMessages((prev) => {
-        console.log('[MessagesProvider] Updating state from', prev.length, 'to', prev.length + 1, 'messages')
         const updated = [...prev, message]
         writeToIndexedDB("messages", { id: chatId, messages: updated })
 

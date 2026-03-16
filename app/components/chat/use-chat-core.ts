@@ -98,8 +98,20 @@ export function useChatCore({
 
   // State management
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [enableSearch, setEnableSearch] = useState(false)
+  const [enableSearch, setEnableSearchState] = useState(false)
   const [ragStatus, setRagStatus] = useState<"streaming" | "ready" | "submitted" | "error">("ready")
+
+  // Persist enableSearch per chat in localStorage
+  useEffect(() => {
+    if (!chatId) return
+    const stored = localStorage.getItem(`web-search:${chatId}`)
+    setEnableSearchState(stored === 'true')
+  }, [chatId])
+
+  const setEnableSearch = useCallback((val: boolean) => {
+    setEnableSearchState(val)
+    if (chatId) localStorage.setItem(`web-search:${chatId}`, String(val))
+  }, [chatId])
 
   // Refs and derived state
   const hasSentFirstMessageRef = useRef(false)
@@ -610,7 +622,10 @@ export function useChatCore({
 
     // Find the last assistant message
     const lastMessage = messages[messages.length - 1]
-    if (lastMessage.role !== 'assistant') return
+    if (lastMessage.role !== 'assistant') {
+      toast({ title: "Nothing to regenerate — last message is not from the assistant.", status: "error" })
+      return
+    }
 
     try {
       const uid = await getOrCreateGuestUserId(user)
