@@ -3,10 +3,17 @@ import path from "path"
 
 const CONFIG_PATH = path.join(process.cwd(), "mcp-servers.json")
 
+export type MCPTransportType = "stdio" | "http" | "sse"
+
 export type MCPServerConfig = {
-  command: string
+  transport?: MCPTransportType  // default: "stdio" for backward compatibility
+  // stdio transport fields
+  command?: string
   args?: string[]
   env?: Record<string, string>
+  // http / sse transport fields
+  url?: string
+  headers?: Record<string, string>
   enabled?: boolean
 }
 

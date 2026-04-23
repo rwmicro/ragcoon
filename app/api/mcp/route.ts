@@ -13,8 +13,18 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as { name: string; server: MCPServerConfig }
   const { name, server } = body
 
-  if (!name || !server?.command) {
-    return NextResponse.json({ error: "name and server.command are required" }, { status: 400 })
+  const transportType = server?.transport ?? "stdio"
+  const isStdio = transportType === "stdio"
+  const isRemote = transportType === "http" || transportType === "sse"
+
+  if (!name) {
+    return NextResponse.json({ error: "name is required" }, { status: 400 })
+  }
+  if (isStdio && !server?.command) {
+    return NextResponse.json({ error: "stdio transport requires server.command" }, { status: 400 })
+  }
+  if (isRemote && !server?.url) {
+    return NextResponse.json({ error: `${transportType} transport requires server.url` }, { status: 400 })
   }
 
   const config = readMCPConfig()

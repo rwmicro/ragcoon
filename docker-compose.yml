@@ -1,6 +1,11 @@
 services:
   ragcoon:
-    build: .
+    build:
+      context: .
+      # Use the host's network stack during build so DNS resolution goes
+      # through /etc/resolv.conf on the host (required when the Docker bridge
+      # cannot reach a LAN-bound DNS resolver like Pi-hole / unbound).
+      network: host
     ports:
       - "3000:3000"
     env_file:
@@ -10,6 +15,8 @@ services:
       # Ollama – defaults to the Docker host; override if running Ollama in its
       # own container or on a remote machine.
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # LM Studio – same idea: reach the host's LM Studio server from the container.
+      LMSTUDIO_BASE_URL: ${LMSTUDIO_BASE_URL:-http://host.docker.internal:1234}
       # RAG backend – defaults to the Docker host; override if the RAG API runs
       # in its own container (e.g. NEXT_PUBLIC_RAG_API_URL=http://rag-api:8001).
       NEXT_PUBLIC_RAG_API_URL: ${NEXT_PUBLIC_RAG_API_URL:-http://host.docker.internal:8001}

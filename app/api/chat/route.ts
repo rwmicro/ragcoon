@@ -1,6 +1,5 @@
 import { SYSTEM_PROMPT_DEFAULT } from "@/lib/config"
 import { getAllModels } from "@/lib/models"
-import { getProviderForModel } from "@/lib/openproviders/provider-map"
 import { getMCPTools } from "@/lib/mcp/client"
 import { pageReaderTools, webSearchTools } from "@/lib/tools/web-search"
 import { Attachment } from "@ai-sdk/ui-utils"
@@ -35,13 +34,14 @@ type ChatRequest = {
   message_group_id?: string
   // AI Settings (optional)
   aiSettings?: {
+    // LLM generation
     temperature?: number
     maxTokens?: number
     topP?: number
     frequencyPenalty?: number
     presencePenalty?: number
     enableWebSearch?: boolean
-    // Advanced RAG features
+    // RAG retrieval
     enableGraphRAG?: boolean
     graphExpansionDepth?: number
     graphAlpha?: number
@@ -50,6 +50,26 @@ type ChatRequest = {
     numHypotheticalDocs?: number
     enableMultiQuery?: boolean
     numQueryVariations?: number
+    // Advanced retrieval
+    enableMultiHop?: boolean
+    maxHops?: number
+    enableContrastive?: boolean
+    enableMMR?: boolean
+    mmrLambda?: number
+    enableAdaptiveAlpha?: boolean
+    // Multilingual
+    enableMultilingual?: boolean
+    queryLanguage?: string | null
+    useMultilingualEmbeddings?: boolean
+    useMultilingualBM25?: boolean
+    useMultilingualHyDE?: boolean
+    useMultilingualClassifier?: boolean
+    detectLanguage?: boolean
+    // LLM override (per-request)
+    llmModelOverride?: string
+    llmProvider?: string
+    llmBaseUrlOverride?: string
+    llmTimeout?: number
   }
 }
 
@@ -175,6 +195,7 @@ export async function POST(req: Request) {
       const encoder = new TextEncoder()
       let fullAnswer = ''
       let ragSources: any[] = []
+      let ragGraphTraversal: any = null
 
       const stream = new ReadableStream({
         async start(controller) {
@@ -205,16 +226,6 @@ export async function POST(req: Request) {
               }
             }
 
-            // Fetch RAG stats to get the configured LLM model
-            let stats: Record<string, unknown> = {}
-            try {
-              const statsResponse = await fetch(`${RAG_API_URL}/stats`, { signal: ragAbort.signal })
-              if (statsResponse.ok) stats = await statsResponse.json()
-            } catch {
-              // Non-critical — fall back to default model
-            }
-            const configuredLlmModel = (stats.llm_model as string) || 'llama3.1:8b'
-
             // Call Python backend streaming API
             const pythonResponse = await fetch(`${RAG_API_URL}/query/stream`, {
               method: 'POST',
@@ -226,17 +237,41 @@ export async function POST(req: Request) {
                 collection_id: collectionId,
                 top_k: 10,
                 use_hybrid_search: true,
+                // Multi-query
                 use_multi_query: aiSettings?.enableMultiQuery ?? false,
                 num_query_variations: aiSettings?.numQueryVariations ?? 2,
+                // Retrieval
                 use_reranking: true,
                 use_compression: false,
+                // Graph RAG
                 use_graph_rag: aiSettings?.enableGraphRAG ?? false,
                 graph_expansion_depth: aiSettings?.graphExpansionDepth ?? 1,
                 graph_alpha: aiSettings?.graphAlpha ?? 0.7,
+                // HyDE
                 use_hyde: aiSettings?.enableHyDE ?? false,
                 hyde_fusion: aiSettings?.hydeFusion ?? "rrf",
                 num_hypothetical_docs: aiSettings?.numHypotheticalDocs ?? 3,
-                use_adaptive_fusion: false,
+                use_adaptive_fusion: aiSettings?.enableAdaptiveAlpha ?? false,
+                // Advanced retrieval
+                enable_multi_hop: aiSettings?.enableMultiHop ?? false,
+                max_hops: aiSettings?.maxHops ?? 2,
+                enable_contrastive: aiSettings?.enableContrastive ?? false,
+                enable_mmr: aiSettings?.enableMMR ?? false,
+                mmr_lambda: aiSettings?.mmrLambda ?? 0.5,
+                // Multilingual
+                enable_multilingual: aiSettings?.enableMultilingual ?? false,
+                query_language: aiSettings?.queryLanguage ?? null,
+                use_multilingual_embeddings: aiSettings?.useMultilingualEmbeddings ?? false,
+                use_multilingual_bm25: aiSettings?.useMultilingualBM25 ?? false,
+                use_multilingual_hyde: aiSettings?.useMultilingualHyDE ?? false,
+                use_multilingual_classifier: aiSettings?.useMultilingualClassifier ?? false,
+                detect_language: aiSettings?.detectLanguage ?? false,
+                // LLM override
+                ...(aiSettings?.llmModelOverride && { llm_model_override: aiSettings.llmModelOverride }),
+                ...(aiSettings?.llmProvider && { llm_provider: aiSettings.llmProvider }),
+                ...(aiSettings?.llmBaseUrlOverride && { llm_base_url_override: aiSettings.llmBaseUrlOverride }),
+                ...(aiSettings?.llmTimeout && { llm_timeout: aiSettings.llmTimeout }),
+                // Generation
                 system_prompt: systemPrompt,
                 stream: true,
               }),
@@ -278,6 +313,11 @@ export async function POST(req: Request) {
                       continue
                     }
 
+                    if (json.type === "graph_traversal") {
+                      ragGraphTraversal = json.traversal || null
+                      continue
+                    }
+
                     if (json.type === "status") {
                       continue
                     }
@@ -308,9 +348,12 @@ export async function POST(req: Request) {
               controller.enqueue(encoder.encode(`2:${sourcesData}\n`))
             }
 
-            controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`))
-            controller.close()
+            if (ragGraphTraversal) {
+              const traversalData = JSON.stringify([{ type: 'rag_graph_traversal', traversal: ragGraphTraversal }])
+              controller.enqueue(encoder.encode(`2:${traversalData}\n`))
+            }
 
+            // Store message BEFORE closing the controller so errors can still be forwarded
             await storeAssistantMessage({
               validation,
               chatId,
@@ -318,9 +361,12 @@ export async function POST(req: Request) {
               message_group_id,
               model,
             })
+
+            controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`))
+            controller.close()
           } catch (error) {
             // Cancel the upstream reader so the Python backend stops streaming
-            reader?.cancel().catch(() => {})
+            await reader?.cancel().catch(() => {})
             console.error('[RAG] Error in stream:', error)
             const errorMsg = error instanceof Error ? error.message : String(error)
             controller.enqueue(encoder.encode(`3:${JSON.stringify(errorMsg)}\n`))

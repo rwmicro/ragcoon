@@ -22,13 +22,15 @@ export async function POST(req: NextRequest) {
           let query = 'SELECT * FROM messages WHERE chat_id = ? ORDER BY created_at ASC'
           const params: any[] = [chatId]
 
-          if (typeof limit === 'number' && limit > 0) {
+          if (typeof limit === 'number' && Number.isFinite(limit) && limit > 0) {
+            const safeLimit = Math.min(Math.floor(limit), 1000)
             query += ' LIMIT ?'
-            params.push(limit)
+            params.push(safeLimit)
 
-            if (typeof offset === 'number' && offset >= 0) {
+            if (typeof offset === 'number' && Number.isFinite(offset) && offset >= 0) {
+              const safeOffset = Math.min(Math.floor(offset), 1_000_000)
               query += ' OFFSET ?'
-              params.push(offset)
+              params.push(safeOffset)
             }
           }
 
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
           if (!chatId || !Array.isArray(data)) {
             return NextResponse.json({ success: false, error: 'Missing required fields: chatId or data (must be array)' }, { status: 400 })
           }
-          await db.exec('BEGIN TRANSACTION')
+          await db.exec('BEGIN IMMEDIATE')
           const stmt = await db.prepare(
             `INSERT OR IGNORE INTO messages (id, chat_id, content, role, user_id, model, parts, experimental_attachments, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`

@@ -1,33 +1,7 @@
 "use client"
 
+import { detectLanguage } from "@/lib/constants/language-map"
 import { useCallback, useRef, useState } from "react"
-import { franc } from "franc-min"
-
-// Map franc language codes to our TTS language codes
-const LANG_MAP: Record<string, string> = {
-  eng: "en",
-  fra: "fr",
-  spa: "es",
-  jpn: "ja",
-  cmn: "zh", // Chinese Mandarin
-  hin: "hi",
-  ita: "it",
-  por: "pt",
-  ind: "id",
-  arb: "ar",
-}
-
-function detectLanguage(text: string): string {
-  try {
-    const detected = franc(text, { minLength: 10 })
-    const mapped = LANG_MAP[detected]
-    console.log(`🌐 Detected language: ${detected} → ${mapped || "en"}`)
-    return mapped || "en"
-  } catch (error) {
-    console.warn("Failed to detect language, defaulting to English", error)
-    return "en"
-  }
-}
 
 export function useTTS(apiUrl?: string) {
   const [isPlaying, setIsPlaying] = useState(false)

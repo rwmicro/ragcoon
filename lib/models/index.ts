@@ -1,3 +1,4 @@
+import { getLMStudioModels } from "./data/lmstudio"
 import { getOllamaModels, ollamaModels } from "./data/ollama"
 import { ModelConfig } from "./types"
 
@@ -61,12 +62,15 @@ export async function getAllModels(): Promise<ModelConfig[]> {
   }
 
   try {
-    // Get dynamically detected Ollama models (includes enabled check internally)
-    const detectedOllamaModels = await getOllamaModels()
-    const ragModels = await getRagModels()
+    // Get dynamically detected local models and RAG models in parallel
+    const [detectedOllamaModels, detectedLMStudioModels, ragModels] =
+      await Promise.all([getOllamaModels(), getLMStudioModels(), getRagModels()])
 
-    // Combine Ollama models with RAG models
-    dynamicModelsCache = [...detectedOllamaModels, ...ragModels]
+    dynamicModelsCache = [
+      ...detectedOllamaModels,
+      ...detectedLMStudioModels,
+      ...ragModels,
+    ]
 
     lastFetchTime = now
     return dynamicModelsCache

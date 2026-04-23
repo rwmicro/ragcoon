@@ -1,9 +1,11 @@
 export * from "./types"
 export { OllamaProvider } from "./ollama-provider"
+export { LMStudioProvider } from "./lmstudio-provider"
 export { HuggingFaceProvider } from "./huggingface-provider"
 
 import type { ModelProvider, ModelProviderType, ModelProviderConfig } from "./types"
 import { OllamaProvider } from "./ollama-provider"
+import { LMStudioProvider } from "./lmstudio-provider"
 import { HuggingFaceProvider } from "./huggingface-provider"
 
 /**
@@ -16,6 +18,9 @@ export class ModelProviderFactory {
       case "ollama":
         return new OllamaProvider(config.baseUrl)
 
+      case "lmstudio":
+        return new LMStudioProvider(config.baseUrl)
+
       case "huggingface":
         return new HuggingFaceProvider(config.baseUrl, config.apiKey)
 
@@ -25,7 +30,7 @@ export class ModelProviderFactory {
   }
 
   static getAvailableProviders(): ModelProviderType[] {
-    return ["ollama", "huggingface"]
+    return ["ollama", "lmstudio", "huggingface"]
   }
 
   static getDefaultConfigs(): Record<ModelProviderType, ModelProviderConfig> {
@@ -33,6 +38,11 @@ export class ModelProviderFactory {
       ollama: {
         type: "ollama",
         baseUrl: "http://localhost:11434",
+        enabled: true,
+      },
+      lmstudio: {
+        type: "lmstudio",
+        baseUrl: "http://0.0.0.0:1234",
         enabled: true,
       },
       huggingface: {

@@ -37,6 +37,32 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true, data: { id: chatId } })
       }
 
+      case 'import': {
+        if (!data || typeof data.title !== 'string') {
+          return NextResponse.json({ success: false, error: 'Missing required field: title' }, { status: 400 })
+        }
+        // Allow importing with a provided id; generate one if missing or already exists
+        let chatId: string = typeof data.id === 'string' && data.id ? data.id : crypto.randomUUID()
+        const existing = await db.get('SELECT id FROM chats WHERE id = ?', [chatId])
+        if (existing) {
+          chatId = crypto.randomUUID()
+        }
+        await db.run(
+          `INSERT INTO chats (id, user_id, title, model, system_prompt, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            chatId,
+            'local-user',
+            data.title,
+            data.model || null,
+            data.system_prompt || null,
+            data.created_at || new Date().toISOString(),
+            new Date().toISOString(),
+          ]
+        )
+        return NextResponse.json({ success: true, data: { id: chatId } })
+      }
+
       case 'update': {
         if (!id || !data || typeof data.title !== 'string') {
           return NextResponse.json({ success: false, error: 'Missing required fields: id or title' }, { status: 400 })

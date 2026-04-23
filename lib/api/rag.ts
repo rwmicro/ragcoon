@@ -207,35 +207,129 @@ export async function clearCache(): Promise<{ success: boolean; message: string 
 /**
  * Ingest directory (all files in backend/data/corpus/)
  */
-export interface IngestDirectoryRequest {
+export interface IngestFolderRequest {
+  folder_path: string
+  collection_title: string
+  collection_id?: string
   recursive?: boolean
-  chunkSize?: number
-  chunkOverlap?: number
-  chunkingStrategy?: "semantic" | "recursive" | "markdown"
+  chunk_size?: number
+  chunk_overlap?: number
+  chunking_strategy?: "semantic" | "recursive" | "markdown"
 }
 
-export async function ingestDirectory(
-  request: IngestDirectoryRequest = {}
-): Promise<UploadFileResponse> {
-  const response = await fetch(`${RAG_API_URL}/ingest/directory`, {
+export async function ingestFolder(
+  request: IngestFolderRequest
+): Promise<{ job_id: string; status: string }> {
+  const response = await fetch(`${RAG_API_URL}/ingest/folder`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      folder_path: request.folder_path,
+      collection_title: request.collection_title,
+      collection_id: request.collection_id,
       recursive: request.recursive ?? true,
-      chunk_size: request.chunkSize ?? 1000,
-      chunk_overlap: request.chunkOverlap ?? 200,
-      chunking_strategy: request.chunkingStrategy ?? "semantic",
+      chunk_size: request.chunk_size ?? 1000,
+      chunk_overlap: request.chunk_overlap ?? 200,
+      chunking_strategy: request.chunking_strategy ?? "semantic",
     }),
   })
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`Directory ingestion failed: ${error}`)
+    throw new Error(`Folder ingestion failed: ${error}`)
   }
 
   return response.json()
+}
+
+// ─── Async ingestion ────────────────────────────────────────────────────────
+
+export interface AsyncIngestionJob {
+  job_id: string
+  status: "queued" | "processing" | "completed" | "failed"
+  progress: number          // 0.0 – 1.0
+  result?: {
+    num_chunks: number
+    collection_id?: string
+  }
+  error?: string
+  created_at?: string
+  updated_at?: string
+}
+
+/**
+ * Upload a file using the async ingestion endpoint.
+ * Returns a job_id that can be polled with getIngestionJob().
+ */
+export async function uploadFileAsync(
+  request: UploadFileRequest
+): Promise<AsyncIngestionJob> {
+  const formData = new FormData()
+  formData.append("file", request.file)
+  if (request.collection_id) formData.append("collection_id", request.collection_id)
+  if (request.collection_title) formData.append("collection_title", request.collection_title)
+  if (request.llm_model) formData.append("llm_model", request.llm_model)
+  if (request.chunk_size) formData.append("chunk_size", request.chunk_size.toString())
+  if (request.chunk_overlap) formData.append("chunk_overlap", request.chunk_overlap.toString())
+  if (request.chunking_strategy) formData.append("chunking_strategy", request.chunking_strategy)
+  if (request.embedding_model) formData.append("embedding_model_name", request.embedding_model)
+  if (request.embedding_provider) formData.append("embedding_provider", request.embedding_provider)
+  if (request.use_ollama_embedding !== undefined) formData.append("use_ollama_embedding", request.use_ollama_embedding.toString())
+  if (request.use_hybrid_embedding !== undefined) formData.append("use_hybrid_embedding", request.use_hybrid_embedding.toString())
+  if (request.use_adaptive_fusion !== undefined) formData.append("use_adaptive_fusion", request.use_adaptive_fusion.toString())
+  if (request.structural_weight !== undefined) formData.append("structural_weight", request.structural_weight.toString())
+  if (request.reranker_model) formData.append("reranker_model", request.reranker_model)
+
+  const response = await fetch(`${RAG_API_URL}/ingest/file/async`, {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Async upload failed: ${error}`)
+  }
+
+  return response.json()
+}
+
+/**
+ * Poll the status of an async ingestion job.
+ */
+export async function getIngestionJob(jobId: string): Promise<AsyncIngestionJob> {
+  const response = await fetch(`${RAG_API_URL}/ingest/jobs/${encodeURIComponent(jobId)}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to get job status: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+/**
+ * Poll an async ingestion job until it completes or fails.
+ * Calls onProgress with each status update (progress 0.0–1.0).
+ */
+export async function waitForIngestionJob(
+  jobId: string,
+  onProgress?: (job: AsyncIngestionJob) => void,
+  intervalMs = 1500,
+  timeoutMs = 5 * 60 * 1000
+): Promise<AsyncIngestionJob> {
+  const deadline = Date.now() + timeoutMs
+
+  while (Date.now() < deadline) {
+    const job = await getIngestionJob(jobId)
+    onProgress?.(job)
+
+    if (job.status === "completed" || job.status === "failed") {
+      return job
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
+
+  throw new Error(`Ingestion job ${jobId} timed out after ${timeoutMs / 1000}s`)
 }
 
 /**
@@ -383,7 +477,7 @@ export interface RAGQueryRequest {
   collection_id: string
   conversation_history?: Array<{ role: string; content: string }>
   top_k?: number
-  use_hybrid?: boolean
+  use_hybrid_search?: boolean
   use_reranking?: boolean
   use_multi_query?: boolean
   use_hyde?: boolean
@@ -458,48 +552,6 @@ export async function query(request: RAGQueryRequest): Promise<RAGQueryResponse>
   return response.json()
 }
 
-/**
- * Query the RAG system (streaming)
- */
-export async function* queryStream(request: RAGQueryRequest): AsyncGenerator<string> {
-  const response = await fetch(`${RAG_API_URL}/query/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  })
-
-  if (!response.ok) {
-    const error = await response.text()
-    throw new Error(`Stream query failed: ${error}`)
-  }
-
-  if (!response.body) {
-    throw new Error("Response body is null")
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split("\n")
-
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = line.slice(6).trim()
-          if (data === "[DONE]") return
-          if (data) yield data
-        }
-      }
-    }
-  } finally {
-    reader.releaseLock()
-  }
-}
 
 /**
  * Model Management Types

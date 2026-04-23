@@ -1,6 +1,12 @@
 "use client"
 
+import { toast } from "@/components/ui/toast"
 import { createContext, useContext, useState, useEffect } from "react"
+
+const clamp = (value: number, min: number, max: number): number => {
+  if (!Number.isFinite(value)) return min
+  return Math.max(min, Math.min(max, value))
+}
 
 // AI behavior settings
 export type AISettings = {
@@ -169,33 +175,44 @@ export function AISettingsProvider({
 
   // Persist settings to localStorage whenever they change
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
-      } catch (error) {
+    if (typeof window === "undefined") return
+    try {
+      localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+    } catch (error) {
+      const isQuotaError =
+        error instanceof DOMException &&
+        (error.name === "QuotaExceededError" ||
+          error.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+          error.code === 22)
+      if (isQuotaError) {
+        toast({
+          title: "Settings not saved — browser storage is full.",
+          status: "error",
+        })
+      } else {
         console.error("Failed to save AI settings to localStorage:", error)
       }
     }
   }, [settings])
 
   const setTemperature = (temperature: number) => {
-    setSettings((prev) => ({ ...prev, temperature }))
+    setSettings((prev) => ({ ...prev, temperature: clamp(temperature, 0, 2) }))
   }
 
   const setMaxTokens = (maxTokens: number) => {
-    setSettings((prev) => ({ ...prev, maxTokens }))
+    setSettings((prev) => ({ ...prev, maxTokens: clamp(Math.floor(maxTokens), 1, 200_000) }))
   }
 
   const setTopP = (topP: number) => {
-    setSettings((prev) => ({ ...prev, topP }))
+    setSettings((prev) => ({ ...prev, topP: clamp(topP, 0, 1) }))
   }
 
   const setFrequencyPenalty = (frequencyPenalty: number) => {
-    setSettings((prev) => ({ ...prev, frequencyPenalty }))
+    setSettings((prev) => ({ ...prev, frequencyPenalty: clamp(frequencyPenalty, -2, 2) }))
   }
 
   const setPresencePenalty = (presencePenalty: number) => {
-    setSettings((prev) => ({ ...prev, presencePenalty }))
+    setSettings((prev) => ({ ...prev, presencePenalty: clamp(presencePenalty, -2, 2) }))
   }
 
   const setEnableWebSearch = (enableWebSearch: boolean) => {
@@ -203,7 +220,7 @@ export function AISettingsProvider({
   }
 
   const setMaxSearchResults = (maxSearchResults: number) => {
-    setSettings((prev) => ({ ...prev, maxSearchResults }))
+    setSettings((prev) => ({ ...prev, maxSearchResults: clamp(Math.floor(maxSearchResults), 1, 20) }))
   }
 
   const setDefaultModel = (defaultModel: string | null) => {
@@ -215,7 +232,7 @@ export function AISettingsProvider({
   }
 
   const setMessageRetention = (messageRetention: number) => {
-    setSettings((prev) => ({ ...prev, messageRetention }))
+    setSettings((prev) => ({ ...prev, messageRetention: clamp(Math.floor(messageRetention), 1, 500) }))
   }
 
   // RAG - Graph RAG setters
@@ -224,11 +241,11 @@ export function AISettingsProvider({
   }
 
   const setGraphExpansionDepth = (graphExpansionDepth: number) => {
-    setSettings((prev) => ({ ...prev, graphExpansionDepth }))
+    setSettings((prev) => ({ ...prev, graphExpansionDepth: clamp(Math.floor(graphExpansionDepth), 0, 10) }))
   }
 
   const setGraphAlpha = (graphAlpha: number) => {
-    setSettings((prev) => ({ ...prev, graphAlpha }))
+    setSettings((prev) => ({ ...prev, graphAlpha: clamp(graphAlpha, 0, 1) }))
   }
 
   // RAG - HyDE setters
@@ -241,7 +258,7 @@ export function AISettingsProvider({
   }
 
   const setNumHypotheticalDocs = (numHypotheticalDocs: number) => {
-    setSettings((prev) => ({ ...prev, numHypotheticalDocs }))
+    setSettings((prev) => ({ ...prev, numHypotheticalDocs: clamp(Math.floor(numHypotheticalDocs), 1, 10) }))
   }
 
   // RAG - Multi-Query setters
@@ -250,7 +267,7 @@ export function AISettingsProvider({
   }
 
   const setNumQueryVariations = (numQueryVariations: number) => {
-    setSettings((prev) => ({ ...prev, numQueryVariations }))
+    setSettings((prev) => ({ ...prev, numQueryVariations: clamp(Math.floor(numQueryVariations), 1, 10) }))
   }
 
   // RAG - Multilingual setters
@@ -288,7 +305,7 @@ export function AISettingsProvider({
   }
 
   const setMaxHops = (maxHops: number) => {
-    setSettings((prev) => ({ ...prev, maxHops }))
+    setSettings((prev) => ({ ...prev, maxHops: clamp(Math.floor(maxHops), 1, 10) }))
   }
 
   const setEnableContrastive = (enableContrastive: boolean) => {
@@ -300,7 +317,7 @@ export function AISettingsProvider({
   }
 
   const setMmrLambda = (mmrLambda: number) => {
-    setSettings((prev) => ({ ...prev, mmrLambda }))
+    setSettings((prev) => ({ ...prev, mmrLambda: clamp(mmrLambda, 0, 1) }))
   }
 
   const setEnableAdaptiveAlpha = (enableAdaptiveAlpha: boolean) => {

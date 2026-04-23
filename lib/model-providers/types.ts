@@ -12,7 +12,7 @@ export interface Model {
   parameterCount?: string
 }
 
-export type ModelProviderType = "ollama" | "huggingface"
+export type ModelProviderType = "ollama" | "lmstudio" | "huggingface"
 
 export interface ModelInfo {
   id: string

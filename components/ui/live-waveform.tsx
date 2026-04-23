@@ -134,7 +134,7 @@ export function LiveWaveform({
     }
 
     const drawStaticWaveform = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-      let dataArray: Uint8Array
+      let dataArray: Uint8Array<ArrayBuffer>
 
       if (getAudioLevel) {
         // Use provided audio level function with more natural variation

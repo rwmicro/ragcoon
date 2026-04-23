@@ -14,6 +14,7 @@ import { ArrowClockwise, Check, Copy, SpeakerHigh, Stop, Database, X, CaretDown,
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { getSources, getWebSources } from "./get-sources"
+import { GraphTraversalPanel, type GraphTraversal } from "./graph-traversal-panel"
 import { WebSourceBubbles } from "./web-source-bubbles"
 import { QuoteButton } from "./quote-button"
 import { Reasoning } from "./reasoning"
@@ -112,6 +113,22 @@ export function MessageAssistant({
   }, [attachments])
 
   const hasRagSources = ragSources.length > 0
+
+  const ragGraphTraversal = useMemo((): GraphTraversal | null => {
+    const attachment = attachments?.find((a) => a.name === '__rag_graph_traversal__')
+    if (!attachment) return null
+    try {
+      const url = attachment.url
+      if (!url) return null
+      if (url.startsWith('data:')) {
+        const base64Data = url.split(',')[1]
+        if (base64Data) return JSON.parse(atob(base64Data)) as GraphTraversal
+      }
+      return JSON.parse(url) as GraphTraversal
+    } catch {
+      return null
+    }
+  }, [attachments])
   const [openSourceIndex, setOpenSourceIndex] = useState<number | null>(null)
   const [isSourcesOpen, setIsSourcesOpen] = useState(false)
   const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null)
@@ -235,7 +252,6 @@ export function MessageAssistant({
     <Message
       className={cn(
         "group flex w-full max-w-3xl flex-1 items-start gap-4 px-6 pb-2",
-        hasScrollAnchor && "min-h-scroll-anchor",
         className
       )}
     >
@@ -470,6 +486,10 @@ export function MessageAssistant({
               </div>
             )}
           </div>
+        )}
+
+        {ragGraphTraversal && !isLastStreaming && (
+          <GraphTraversalPanel traversal={ragGraphTraversal} />
         )}
 
         {Boolean(isLastStreaming || contentNullOrEmpty) ? null : (

@@ -92,14 +92,30 @@ export const Message = memo(function Message({
   const enhancedAttachments = useMemo(() => {
     const base = attachments || []
     if (!streamData || !Array.isArray(streamData)) return base
+
+    const extras: typeof base = []
+
     const ragSourcesData = streamData.find((item: any) => item?.type === 'rag_sources')
-    if (!ragSourcesData?.sources) return base
-    const sourcesBase64 = Buffer.from(JSON.stringify(ragSourcesData.sources)).toString('base64')
-    return [...base, {
-      name: '__rag_sources__',
-      contentType: 'application/json',
-      url: `data:application/json;base64,${sourcesBase64}`,
-    }]
+    if (ragSourcesData?.sources) {
+      const sourcesBase64 = Buffer.from(JSON.stringify(ragSourcesData.sources)).toString('base64')
+      extras.push({
+        name: '__rag_sources__',
+        contentType: 'application/json',
+        url: `data:application/json;base64,${sourcesBase64}`,
+      })
+    }
+
+    const traversalData = streamData.find((item: any) => item?.type === 'rag_graph_traversal')
+    if (traversalData?.traversal) {
+      const traversalBase64 = Buffer.from(JSON.stringify(traversalData.traversal)).toString('base64')
+      extras.push({
+        name: '__rag_graph_traversal__',
+        contentType: 'application/json',
+        url: `data:application/json;base64,${traversalBase64}`,
+      })
+    }
+
+    return extras.length > 0 ? [...base, ...extras] : base
   }, [attachments, streamData])
 
   if (variant === "assistant") {

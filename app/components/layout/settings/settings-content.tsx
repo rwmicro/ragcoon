@@ -24,6 +24,7 @@ import { OllamaSection } from "./connections/ollama-section"
 import { UserProfile } from "./general/user-profile"
 import { AIBehavior } from "./general/ai-behavior"
 import { AgenticSettings } from "./general/agentic-settings"
+import { ChatBackups } from "./general/chat-backups"
 import { SystemPromptSection } from "./general/system-prompt"
 // import { RAGSettings } from "./general/rag-settings" // REMOVED: All RAG settings are now in dedicated RAG Dashboard (/rag)
 import { VoiceSettings } from "./voice/voice-settings"
@@ -166,6 +167,7 @@ export function SettingsContent({
                 <AIBehavior />
                 <AgenticSettings />
                 <SystemPromptSection />
+                <ChatBackups />
               </TabsContent>
 
               <TabsContent value="appearance" className="space-y-6 mt-0">
@@ -269,6 +271,7 @@ export function SettingsContent({
                   <AIBehavior />
                   <AgenticSettings />
                   <SystemPromptSection />
+                  <ChatBackups />
                 </TabsContent>
 
                 <TabsContent value="appearance" className="mt-0 space-y-6">

@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
-import type { MCPConfig, MCPServerConfig } from "@/lib/mcp/config"
+import type { MCPConfig, MCPServerConfig, MCPTransportType } from "@/lib/mcp/config"
 import {
   Plus,
   Trash,
@@ -18,6 +18,12 @@ import { useCallback, useEffect, useState } from "react"
 
 type ServerEntry = { name: string } & MCPServerConfig
 
+const TRANSPORT_LABELS: Record<MCPTransportType, string> = {
+  stdio: "Stdio (local)",
+  http: "HTTP (streamable)",
+  sse: "SSE (remote)",
+}
+
 export function MCPSettings() {
   const [servers, setServers] = useState<ServerEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,8 +33,11 @@ export function MCPSettings() {
   // Form state for adding a new server
   const [showForm, setShowForm] = useState(false)
   const [newName, setNewName] = useState("")
+  const [newTransport, setNewTransport] = useState<MCPTransportType>("stdio")
   const [newCommand, setNewCommand] = useState("")
   const [newArgs, setNewArgs] = useState("")
+  const [newUrl, setNewUrl] = useState("")
+  const [newHeaders, setNewHeaders] = useState("")
   const [formError, setFormError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -81,19 +90,56 @@ export function MCPSettings() {
     }
   }
 
+  const resetForm = () => {
+    setNewName("")
+    setNewTransport("stdio")
+    setNewCommand("")
+    setNewArgs("")
+    setNewUrl("")
+    setNewHeaders("")
+    setFormError(null)
+  }
+
   const handleAdd = async () => {
     if (!newName.trim()) return setFormError("Name is required.")
-    if (!newCommand.trim()) return setFormError("Command is required.")
     if (servers.some((s) => s.name === newName.trim()))
       return setFormError("A server with this name already exists.")
+
+    const isRemote = newTransport === "http" || newTransport === "sse"
+
+    if (!isRemote && !newCommand.trim())
+      return setFormError("Command is required for stdio transport.")
+    if (isRemote && !newUrl.trim())
+      return setFormError("URL is required for HTTP/SSE transport.")
+
+    // Parse optional headers (JSON object or "Key: Value" lines)
+    let parsedHeaders: Record<string, string> | undefined
+    if (isRemote && newHeaders.trim()) {
+      try {
+        parsedHeaders = JSON.parse(newHeaders.trim())
+      } catch {
+        // Try "Key: Value" format
+        parsedHeaders = {}
+        for (const line of newHeaders.trim().split("\n")) {
+          const idx = line.indexOf(":")
+          if (idx === -1) return setFormError(`Invalid header line: "${line}"`)
+          parsedHeaders[line.slice(0, idx).trim()] = line.slice(idx + 1).trim()
+        }
+      }
+    }
 
     setFormError(null)
     setSaving("__new__")
 
     const server: MCPServerConfig = {
-      command: newCommand.trim(),
-      args: newArgs.trim() ? newArgs.trim().split(/\s+/) : [],
+      transport: newTransport,
       enabled: true,
+      ...(isRemote
+        ? { url: newUrl.trim(), ...(parsedHeaders ? { headers: parsedHeaders } : {}) }
+        : {
+            command: newCommand.trim(),
+            args: newArgs.trim() ? newArgs.trim().split(/\s+/) : [],
+          }),
     }
 
     try {
@@ -103,9 +149,7 @@ export function MCPSettings() {
         body: JSON.stringify({ name: newName.trim(), server }),
       })
       setServers((prev) => [...prev, { name: newName.trim(), ...server }])
-      setNewName("")
-      setNewCommand("")
-      setNewArgs("")
+      resetForm()
       setShowForm(false)
     } finally {
       setSaving(null)
@@ -149,6 +193,8 @@ export function MCPSettings() {
       {servers.map((server) => {
         const isEnabled = server.enabled !== false
         const isSaving = saving === server.name
+        const transportType = server.transport ?? "stdio"
+        const isRemote = transportType === "http" || transportType === "sse"
 
         return (
           <div
@@ -161,6 +207,9 @@ export function MCPSettings() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium truncate">{server.name}</span>
+                <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {TRANSPORT_LABELS[transportType]}
+                </span>
                 {isEnabled && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 px-1.5 py-0.5 text-[10px] text-green-700 dark:text-green-400">
                     <CheckCircle className="size-2.5" weight="fill" />
@@ -169,7 +218,9 @@ export function MCPSettings() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 font-mono truncate">
-                {server.command} {(server.args ?? []).join(" ")}
+                {isRemote
+                  ? server.url
+                  : `${server.command ?? ""} ${(server.args ?? []).join(" ")}`.trim()}
               </p>
             </div>
 
@@ -212,19 +263,63 @@ export function MCPSettings() {
               onChange={(e) => setNewName(e.target.value)}
               className="text-sm h-8"
             />
-            <Input
-              placeholder="Command (e.g. npx)"
-              value={newCommand}
-              onChange={(e) => setNewCommand(e.target.value)}
-              className="text-sm h-8 font-mono"
-            />
-            <Input
-              placeholder="Args (e.g. -y @modelcontextprotocol/server-filesystem /tmp)"
-              value={newArgs}
-              onChange={(e) => setNewArgs(e.target.value)}
-              className="text-sm h-8 font-mono"
-            />
+
+            {/* Transport selector */}
+            <div className="flex gap-1">
+              {(["stdio", "http", "sse"] as MCPTransportType[]).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setNewTransport(t)}
+                  className={cn(
+                    "flex-1 rounded-md border px-2 py-1 text-xs transition-colors",
+                    newTransport === t
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {TRANSPORT_LABELS[t]}
+                </button>
+              ))}
+            </div>
+
+            {/* Stdio fields */}
+            {newTransport === "stdio" && (
+              <>
+                <Input
+                  placeholder="Command (e.g. npx)"
+                  value={newCommand}
+                  onChange={(e) => setNewCommand(e.target.value)}
+                  className="text-sm h-8 font-mono"
+                />
+                <Input
+                  placeholder="Args (e.g. -y @modelcontextprotocol/server-filesystem /tmp)"
+                  value={newArgs}
+                  onChange={(e) => setNewArgs(e.target.value)}
+                  className="text-sm h-8 font-mono"
+                />
+              </>
+            )}
+
+            {/* HTTP / SSE fields */}
+            {(newTransport === "http" || newTransport === "sse") && (
+              <>
+                <Input
+                  placeholder={`URL (e.g. https://mcp.example.com/${newTransport === "sse" ? "sse" : "mcp"})`}
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                  className="text-sm h-8 font-mono"
+                />
+                <Input
+                  placeholder='Headers — JSON {"Authorization":"Bearer ..."} or "Key: Value" lines (optional)'
+                  value={newHeaders}
+                  onChange={(e) => setNewHeaders(e.target.value)}
+                  className="text-sm h-8 font-mono"
+                />
+              </>
+            )}
           </div>
+
           {formError && (
             <p className="text-xs text-destructive">{formError}</p>
           )}
@@ -244,10 +339,7 @@ export function MCPSettings() {
               variant="ghost"
               onClick={() => {
                 setShowForm(false)
-                setFormError(null)
-                setNewName("")
-                setNewCommand("")
-                setNewArgs("")
+                resetForm()
               }}
             >
               Cancel

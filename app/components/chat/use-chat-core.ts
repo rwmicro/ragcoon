@@ -68,7 +68,7 @@ export function useChatCore({
   const { activeCollectionId, settings: ragSettings } = useRAG()
 
   // Merge AI settings with RAG settings for multilingual and advanced features
-  const mergedRagSettings = {
+  const mergedRagSettings = useMemo(() => ({
     ...ragSettings,
     // Override with AI settings for advanced features
     use_graph_rag: aiSettings.enableGraphRAG,
@@ -94,7 +94,7 @@ export function useChatCore({
     enable_mmr: aiSettings.enableMMR,
     mmr_lambda: aiSettings.mmrLambda,
     enable_adaptive_alpha: aiSettings.enableAdaptiveAlpha,
-  }
+  }), [ragSettings, aiSettings])
 
   // State management
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -399,6 +399,10 @@ export function useChatCore({
       // Use the newly created chatId
       activeChatId = currentChatId
 
+      // Persist current enableSearch for the new chatId before setChatId triggers
+      // the useEffect that reads localStorage — otherwise it defaults to false
+      localStorage.setItem(`web-search:${currentChatId}`, String(enableSearch))
+
       // Update stable ID immediately so useChat uses the correct ID
       stableUseChatId.current = currentChatId
 
@@ -562,12 +566,37 @@ export function useChatCore({
           systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
           enableSearch,
           aiSettings: {
+            // LLM generation
             temperature: aiSettings.temperature,
             maxTokens: aiSettings.maxTokens,
             topP: aiSettings.topP,
             frequencyPenalty: aiSettings.frequencyPenalty,
             presencePenalty: aiSettings.presencePenalty,
             enableWebSearch: aiSettings.enableWebSearch,
+            // RAG retrieval
+            enableGraphRAG: aiSettings.enableGraphRAG,
+            graphExpansionDepth: aiSettings.graphExpansionDepth,
+            graphAlpha: aiSettings.graphAlpha,
+            enableHyDE: aiSettings.enableHyDE,
+            hydeFusion: aiSettings.hydeFusion,
+            numHypotheticalDocs: aiSettings.numHypotheticalDocs,
+            enableMultiQuery: aiSettings.enableMultiQuery,
+            numQueryVariations: aiSettings.numQueryVariations,
+            // Advanced retrieval
+            enableMultiHop: aiSettings.enableMultiHop,
+            maxHops: aiSettings.maxHops,
+            enableContrastive: aiSettings.enableContrastive,
+            enableMMR: aiSettings.enableMMR,
+            mmrLambda: aiSettings.mmrLambda,
+            enableAdaptiveAlpha: aiSettings.enableAdaptiveAlpha,
+            // Multilingual
+            enableMultilingual: aiSettings.enableMultilingual,
+            queryLanguage: aiSettings.queryLanguage,
+            useMultilingualEmbeddings: aiSettings.useMultilingualEmbeddings,
+            useMultilingualBM25: aiSettings.useMultilingualBM25,
+            useMultilingualHyDE: aiSettings.useMultilingualHyDE,
+            useMultilingualClassifier: aiSettings.useMultilingualClassifier,
+            detectLanguage: aiSettings.detectLanguage,
           },
         },
         experimental_attachments: attachments || undefined,
@@ -700,12 +729,37 @@ export function useChatCore({
           systemPrompt: systemPrompt || SYSTEM_PROMPT_DEFAULT,
           enableSearch,
           aiSettings: {
+            // LLM generation
             temperature: aiSettings.temperature,
             maxTokens: aiSettings.maxTokens,
             topP: aiSettings.topP,
             frequencyPenalty: aiSettings.frequencyPenalty,
             presencePenalty: aiSettings.presencePenalty,
             enableWebSearch: aiSettings.enableWebSearch,
+            // RAG retrieval
+            enableGraphRAG: aiSettings.enableGraphRAG,
+            graphExpansionDepth: aiSettings.graphExpansionDepth,
+            graphAlpha: aiSettings.graphAlpha,
+            enableHyDE: aiSettings.enableHyDE,
+            hydeFusion: aiSettings.hydeFusion,
+            numHypotheticalDocs: aiSettings.numHypotheticalDocs,
+            enableMultiQuery: aiSettings.enableMultiQuery,
+            numQueryVariations: aiSettings.numQueryVariations,
+            // Advanced retrieval
+            enableMultiHop: aiSettings.enableMultiHop,
+            maxHops: aiSettings.maxHops,
+            enableContrastive: aiSettings.enableContrastive,
+            enableMMR: aiSettings.enableMMR,
+            mmrLambda: aiSettings.mmrLambda,
+            enableAdaptiveAlpha: aiSettings.enableAdaptiveAlpha,
+            // Multilingual
+            enableMultilingual: aiSettings.enableMultilingual,
+            queryLanguage: aiSettings.queryLanguage,
+            useMultilingualEmbeddings: aiSettings.useMultilingualEmbeddings,
+            useMultilingualBM25: aiSettings.useMultilingualBM25,
+            useMultilingualHyDE: aiSettings.useMultilingualHyDE,
+            useMultilingualClassifier: aiSettings.useMultilingualClassifier,
+            detectLanguage: aiSettings.detectLanguage,
           },
         },
       }

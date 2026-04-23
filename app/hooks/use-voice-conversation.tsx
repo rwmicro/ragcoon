@@ -1,35 +1,9 @@
 "use client"
 
+import { detectLanguage } from "@/lib/constants/language-map"
 import { useCallback, useEffect, useRef, useState } from "react"
-import { franc } from "franc-min"
 
 export type ConversationStatus = "idle" | "listening" | "processing" | "speaking"
-
-// Map franc language codes to our TTS language codes
-const LANG_MAP: Record<string, string> = {
-  eng: "en",
-  fra: "fr",
-  spa: "es",
-  jpn: "ja",
-  cmn: "zh", // Chinese Mandarin
-  hin: "hi",
-  ita: "it",
-  por: "pt",
-  ind: "id",
-  arb: "ar",
-}
-
-function detectLanguage(text: string): string {
-  try {
-    const detected = franc(text, { minLength: 10 })
-    const mapped = LANG_MAP[detected]
-    console.log(`🌐 Detected language: ${detected} → ${mapped || "en"}`)
-    return mapped || "en"
-  } catch (error) {
-    console.warn("Failed to detect language, defaulting to English", error)
-    return "en"
-  }
-}
 
 interface UseVoiceConversationProps {
   onTranscript?: (text: string) => void
@@ -63,7 +37,7 @@ export function useVoiceConversation({
   const analyserRef = useRef<AnalyserNode | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const animationFrameRef = useRef<number | null>(null)
-  const dataArrayRef = useRef<Uint8Array | null>(null)
+  const dataArrayRef = useRef<Uint8Array<ArrayBuffer> | null>(null)
 
   // VAD state
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -234,7 +208,9 @@ export function useVoiceConversation({
       setStatus("listening")
       // Ensure AudioContext is closed even on error
       if (audioContext) {
-        await audioContext.close().catch(() => {})
+        await audioContext.close().catch((err) => {
+          console.warn("Failed to close AudioContext after error:", err)
+        })
       }
     } finally {
       processingRef.current = false

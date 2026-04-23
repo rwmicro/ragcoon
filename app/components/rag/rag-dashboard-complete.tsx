@@ -60,12 +60,14 @@ import {
 } from "@/components/ui/tooltip"
 import { useRAGSettings } from "@/lib/rag-settings-store"
 import type { RetrievalStrategy, ResponseLength } from "@/lib/rag-settings-store"
+import { useAISettings } from "@/lib/ai-settings-store/provider"
 import { useModel } from "@/lib/model-store/provider"
 import {
   deleteCollection,
   listCollections,
   RAGCollection,
-  uploadFile,
+  uploadFileAsync,
+  waitForIngestionJob,
   ingestUrl,
   getCollection,
   getRAGStats,
@@ -155,6 +157,16 @@ export function RAGDashboardComplete() {
   } = useRAGSettings()
 
   const { models } = useModel()
+  const {
+    settings: aiSettings,
+    setEnableGraphRAG,
+    setGraphExpansionDepth,
+    setGraphAlpha,
+    setEnableMMR,
+    setMmrLambda,
+    setEnableMultiHop,
+    setMaxHops,
+  } = useAISettings()
 
   // Collections state
   const [collections, setCollections] = useState<RAGCollection[]>([])
@@ -430,7 +442,7 @@ export function RAGDashboardComplete() {
             structural_weight: settings.ingestion.structuralWeight,
           })
         } else {
-          await uploadFile({
+          const job = await uploadFileAsync({
             collection_id: collectionTitle,
             collection_title: collectionTitle,
             file: item.file,
@@ -446,6 +458,23 @@ export function RAGDashboardComplete() {
             use_adaptive_fusion: settings.ingestion.useAdaptiveFusion,
             structural_weight: settings.ingestion.structuralWeight,
           })
+
+          const completed = await waitForIngestionJob(
+            job.job_id,
+            (update) => {
+              setUploadQueue((prev) =>
+                prev.map((i) =>
+                  i.id === item.id
+                    ? { ...i, progress: Math.round(update.progress * 100) }
+                    : i
+                )
+              )
+            }
+          )
+
+          if (completed.status === "failed") {
+            throw new Error(completed.error || "Ingestion failed")
+          }
         }
 
         setUploadQueue((prev) =>
@@ -1055,17 +1084,6 @@ export function RAGDashboardComplete() {
 
               <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
                 <div className="space-y-0.5">
-                  <Label className="text-sm font-medium">Context Compression</Label>
-                  <p className="text-xs text-muted-foreground">Compress retrieved context to reduce tokens</p>
-                </div>
-                <Switch
-                  checked={settings.retrieval.useReranking}
-                  onCheckedChange={(checked) => updateRetrievalSettings({ useReranking: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                <div className="space-y-0.5">
                   <Label className="text-sm font-medium">Debug Info</Label>
                   <p className="text-xs text-muted-foreground">Display scores, latency, and strategy details</p>
                 </div>
@@ -1198,6 +1216,164 @@ export function RAGDashboardComplete() {
                       onCheckedChange={(checked) => updateRetrievalSettings({ useMultilingualHyDE: checked })}
                     />
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Graph RAG */}
+            <div className="space-y-4 p-5 rounded-xl border bg-card/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="size-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                    <Graph className="size-5" weight="duotone" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="enableGraphRAG" className="font-medium cursor-pointer">Graph RAG</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="size-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Expands retrieval through entity/relation graph for connected knowledge.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Graph-augmented retrieval</p>
+                  </div>
+                </div>
+                <Switch
+                  id="enableGraphRAG"
+                  checked={aiSettings.enableGraphRAG}
+                  onCheckedChange={setEnableGraphRAG}
+                />
+              </div>
+
+              {aiSettings.enableGraphRAG && (
+                <div className="pl-11 space-y-5 pt-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">Expansion Depth</Label>
+                      <span className="text-xs text-muted-foreground tabular-nums">{aiSettings.graphExpansionDepth}</span>
+                    </div>
+                    <Slider
+                      value={[aiSettings.graphExpansionDepth]}
+                      onValueChange={([value]) => setGraphExpansionDepth(value)}
+                      min={1}
+                      max={3}
+                      step={1}
+                    />
+                    <p className="text-xs text-muted-foreground">Hops to traverse in the graph</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">Graph Alpha</Label>
+                      <span className="text-xs text-muted-foreground tabular-nums">{aiSettings.graphAlpha.toFixed(2)}</span>
+                    </div>
+                    <Slider
+                      value={[aiSettings.graphAlpha]}
+                      onValueChange={([value]) => setGraphAlpha(value)}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                    />
+                    <p className="text-xs text-muted-foreground">Weight of vector vs graph scores (higher = more vector)</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* MMR Diversity */}
+            <div className="space-y-4 p-5 rounded-xl border bg-card/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="size-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500">
+                    <Stack className="size-5" weight="duotone" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="enableMMR" className="font-medium cursor-pointer">MMR Diversity</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="size-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Maximal Marginal Relevance — reduces redundancy across retrieved chunks.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Penalize near-duplicate chunks</p>
+                  </div>
+                </div>
+                <Switch
+                  id="enableMMR"
+                  checked={aiSettings.enableMMR}
+                  onCheckedChange={setEnableMMR}
+                />
+              </div>
+
+              {aiSettings.enableMMR && (
+                <div className="pl-11 space-y-3 pt-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Lambda</Label>
+                    <span className="text-xs text-muted-foreground tabular-nums">{aiSettings.mmrLambda.toFixed(2)}</span>
+                  </div>
+                  <Slider
+                    value={[aiSettings.mmrLambda]}
+                    onValueChange={([value]) => setMmrLambda(value)}
+                    min={0}
+                    max={1}
+                    step={0.05}
+                  />
+                  <p className="text-xs text-muted-foreground">1 = relevance only, 0 = diversity only</p>
+                </div>
+              )}
+            </div>
+
+            {/* Multi-Hop */}
+            <div className="space-y-4 p-5 rounded-xl border bg-card/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="size-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500">
+                    <TrendUp className="size-5" weight="duotone" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="enableMultiHop" className="font-medium cursor-pointer">Multi-Hop</Label>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="size-3.5 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p>Chains multiple retrieval rounds for complex, multi-step questions.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">Iterative reasoning retrieval</p>
+                  </div>
+                </div>
+                <Switch
+                  id="enableMultiHop"
+                  checked={aiSettings.enableMultiHop}
+                  onCheckedChange={setEnableMultiHop}
+                />
+              </div>
+
+              {aiSettings.enableMultiHop && (
+                <div className="pl-11 space-y-3 pt-2 animate-in slide-in-from-top-2 fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium">Max Hops</Label>
+                    <span className="text-xs text-muted-foreground tabular-nums">{aiSettings.maxHops}</span>
+                  </div>
+                  <Slider
+                    value={[aiSettings.maxHops]}
+                    onValueChange={([value]) => setMaxHops(value)}
+                    min={1}
+                    max={5}
+                    step={1}
+                  />
+                  <p className="text-xs text-muted-foreground">Upper bound on reasoning rounds</p>
                 </div>
               )}
             </div>

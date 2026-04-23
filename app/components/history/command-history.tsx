@@ -28,9 +28,18 @@ import { useChatSession } from "@/lib/chat-store/session/provider"
 import type { Chats } from "@/lib/chat-store/types"
 import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { cn } from "@/lib/utils"
-import { Check, PencilSimple, TrashSimple, X } from "@phosphor-icons/react"
+import { Check, ChatCircleText, PencilSimple, TrashSimple, X } from "@phosphor-icons/react"
 import { useRouter } from "next/navigation"
-import { useCallback, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+
+type MessageHit = {
+  chatId: string
+  chatTitle: string
+  snippet: string
+  messageId: string
+  role: "user" | "assistant" | "system"
+  createdAt: string
+}
 import { CommandFooter } from "./command-footer"
 import { formatDate, groupChatsByDate } from "./utils"
 
@@ -318,6 +327,47 @@ export function CommandHistory({
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState("")
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [messageHits, setMessageHits] = useState<MessageHit[]>([])
+  const [isSearchingMessages, setIsSearchingMessages] = useState(false)
+
+  // Debounced message content search against /api/search
+  useEffect(() => {
+    const query = searchQuery.trim()
+    if (query.length < 2) {
+      setMessageHits([])
+      setIsSearchingMessages(false)
+      return
+    }
+
+    const controller = new AbortController()
+    setIsSearchingMessages(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/search?q=${encodeURIComponent(query)}&limit=15`,
+          { signal: controller.signal }
+        )
+        if (!res.ok) throw new Error(`search failed: ${res.status}`)
+        const data: { hits: Array<MessageHit & { matchType: string }> } =
+          await res.json()
+        setMessageHits(
+          data.hits.filter((h) => h.matchType === "message") as MessageHit[]
+        )
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") {
+          console.warn("[search] failed:", err)
+          setMessageHits([])
+        }
+      } finally {
+        setIsSearchingMessages(false)
+      }
+    }, 200)
+
+    return () => {
+      controller.abort()
+      clearTimeout(t)
+    }
+  }, [searchQuery])
 
   if (isHistory && !hasPrefetchedRef.current) {
     const recentChats = chatHistory.slice(0, 10)
@@ -494,14 +544,50 @@ export function CommandHistory({
             "max-h-[480px] min-h-[480px] flex-1 [&>[cmdk-list-sizer]]:space-y-6 [&>[cmdk-list-sizer]]:py-2"
           )}
         >
-          {filteredChat.length === 0 && (
-            <CommandEmpty>No chat history found.</CommandEmpty>
+          {filteredChat.length === 0 && messageHits.length === 0 && !isSearchingMessages && (
+            <CommandEmpty>
+              {searchQuery ? "No results found." : "No chat history found."}
+            </CommandEmpty>
           )}
 
           {searchQuery ? (
-            <CommandGroup className="p-1.5">
-              {filteredChat.map((chat) => renderChatItem(chat))}
-            </CommandGroup>
+            <>
+              {filteredChat.length > 0 && (
+                <CommandGroup heading="Chats" className="px-1.5">
+                  {filteredChat.map((chat) => renderChatItem(chat))}
+                </CommandGroup>
+              )}
+              {messageHits.length > 0 && (
+                <CommandGroup heading="Messages" className="px-1.5">
+                  {messageHits.map((hit) => (
+                    <CommandItem
+                      key={hit.messageId}
+                      value={`msg:${hit.messageId}`}
+                      onSelect={() => {
+                        setIsOpen(false)
+                        router.push(`/c/${hit.chatId}#msg-${hit.messageId}`)
+                      }}
+                      className="flex items-start gap-2 rounded-md py-2"
+                    >
+                      <ChatCircleText className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-medium">
+                            {hit.chatTitle || "Untitled"}
+                          </span>
+                          <Badge variant="secondary" className="h-4 px-1 text-[10px]">
+                            {hit.role}
+                          </Badge>
+                        </div>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {hit.snippet}
+                        </p>
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+            </>
           ) : (
             groupedChats?.map((group) => (
               <CommandGroup

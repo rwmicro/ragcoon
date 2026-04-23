@@ -19,23 +19,20 @@ interface Shortcut {
 
 const shortcuts: Shortcut[] = [
   // Navigation
-  { keys: ["Ctrl", "K"], description: "Search conversations", category: "Navigation" },
-  { keys: ["Ctrl", "N"], description: "New conversation", category: "Navigation" },
-  { keys: ["Ctrl", "/"], description: "Focus search", category: "Navigation" },
+  { keys: ["Ctrl", "K"], description: "Search chats & messages", category: "Navigation" },
+  { keys: ["Ctrl", "B"], description: "Toggle sidebar", category: "Navigation" },
+
+  // Selectors
+  { keys: ["Ctrl", "Shift", "P"], description: "Open model selector", category: "Selectors" },
+  { keys: ["Ctrl", "Shift", "M"], description: "Open multi-model selector", category: "Selectors" },
 
   // Chat
-  { keys: ["Ctrl", "Enter"], description: "Send message", category: "Chat" },
-  { keys: ["Escape"], description: "Stop generation", category: "Chat" },
-  { keys: ["↑"], description: "Edit last message (when input focused)", category: "Chat" },
-
-  // Actions
-  { keys: ["Ctrl", "Shift", "C"], description: "Copy last response", category: "Actions" },
-  { keys: ["Ctrl", "Shift", "E"], description: "Export conversation", category: "Actions" },
-  { keys: ["Ctrl", "Shift", "D"], description: "Open RAG Dashboard", category: "Actions" },
+  { keys: ["Enter"], description: "Send message", category: "Chat" },
+  { keys: ["Shift", "Enter"], description: "New line in message", category: "Chat" },
 
   // General
   { keys: ["?"], description: "Show keyboard shortcuts", category: "General" },
-  { keys: ["Ctrl", ","], description: "Open settings", category: "General" },
+  { keys: ["Esc"], description: "Close dialog / cancel", category: "General" },
 ]
 
 interface KeyboardShortcutsDialogProps {

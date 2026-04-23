@@ -1,12 +1,14 @@
 "use client"
 
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
 import { convertToMemoryGraphFormatInterconnected } from "@/lib/api/graph-adapter"
 import { getCollectionGraph } from "@/lib/api/rag"
+import { cn } from "@/lib/utils"
 import { MemoryGraph } from "@supermemory/memory-graph"
 import type { DocumentWithMemories } from "@supermemory/memory-graph"
-import { Info, Loader2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { Info, Loader2, Search, X } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 interface GraphNode {
@@ -54,6 +56,7 @@ export function GraphVisualizationEnhanced({
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [selectedSpace, setSelectedSpace] = useState<string>("all")
+  const [search, setSearch] = useState("")
 
   useEffect(() => {
     const loadGraph = async () => {
@@ -93,14 +96,21 @@ export function GraphVisualizationEnhanced({
       {} as Record<string, number>
     )
 
-  // Get top entities by importance
-  const topEntities = graphData?.stats?.top_entities?.slice(0, 5) || []
+  // Get top entities by importance (filtered by search)
+  const topEntities = useMemo(() => {
+    const all = graphData?.stats?.top_entities || []
+    const q = search.trim().toLowerCase()
+    const filtered = q
+      ? all.filter((e: any) => e.name?.toLowerCase().includes(q))
+      : all
+    return filtered.slice(0, 8)
+  }, [graphData, search])
 
   return (
     <div className="relative h-full w-full">
       {/* Enhanced stats overlay with more information */}
       {graphData && (
-        <div className="bg-background/90 pointer-events-none absolute top-4 left-4 z-10 max-w-xs space-y-3 rounded-lg border p-4 text-xs shadow-lg backdrop-blur-sm">
+        <div className="bg-background/90 absolute top-4 left-4 z-10 max-w-xs space-y-3 rounded-lg border p-4 text-xs shadow-lg backdrop-blur-sm">
           <div className="flex items-center gap-2">
             <Info className="size-4" />
             <div className="text-sm font-semibold">Graph Analytics</div>
@@ -142,24 +152,72 @@ export function GraphVisualizationEnhanced({
 
           {entityTypeStats && Object.keys(entityTypeStats).length > 0 && (
             <div className="space-y-1">
-              <div className="text-muted-foreground font-medium">
-                Entity Types
+              <div className="flex items-center justify-between">
+                <div className="text-muted-foreground font-medium">
+                  Entity Types
+                </div>
+                {selectedSpace !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSpace("all")}
+                    className="text-muted-foreground hover:text-foreground text-[10px] underline-offset-2 hover:underline"
+                  >
+                    clear
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-1">
-                {Object.entries(entityTypeStats).map(([type, count]) => (
-                  <Badge
-                    key={type}
-                    variant="secondary"
-                    className="px-1.5 py-0 text-[10px]"
-                  >
-                    {type}: {count}
-                  </Badge>
-                ))}
+                {Object.entries(entityTypeStats).map(([type, count]) => {
+                  const active = selectedSpace === type
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() =>
+                        setSelectedSpace(active ? "all" : type)
+                      }
+                      className="focus:ring-ring rounded focus:outline-none focus:ring-2"
+                    >
+                      <Badge
+                        variant={active ? "default" : "secondary"}
+                        className={cn(
+                          "cursor-pointer px-1.5 py-0 text-[10px] transition",
+                          !active && "hover:bg-secondary/80"
+                        )}
+                      >
+                        {type}: {count}
+                      </Badge>
+                    </button>
+                  )
+                })}
               </div>
             </div>
           )}
 
-          {topEntities.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-muted-foreground font-medium">Search</div>
+            <div className="relative">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3 -translate-y-1/2" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter top entities"
+                className="h-7 pr-7 pl-7 text-[11px]"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-1.5 -translate-y-1/2"
+                  aria-label="Clear search"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {topEntities.length > 0 ? (
             <div className="space-y-1">
               <div className="text-muted-foreground font-medium">
                 Top Entities
@@ -181,6 +239,12 @@ export function GraphVisualizationEnhanced({
                 ))}
               </div>
             </div>
+          ) : (
+            search && (
+              <div className="text-muted-foreground text-[11px] italic">
+                No entities match &quot;{search}&quot;
+              </div>
+            )
           )}
         </div>
       )}

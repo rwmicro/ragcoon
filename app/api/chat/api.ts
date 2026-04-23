@@ -4,7 +4,7 @@ import type {
   StoreAssistantMessageParams,
   DatabaseClientType,
 } from "@/app/types/api.types"
-import { getProviderForModel } from "@/lib/openproviders/provider-map"
+import { getAllModels, getModelInfo } from "@/lib/models"
 import { sanitizeUserInput } from "@/lib/sanitize"
 import { validateUserIdentity } from "@/lib/server/api"
 import { getDb } from '@/lib/db'
@@ -64,9 +64,16 @@ export async function validateAndTrackUsage({
     return dbClient
   }
 
-  const provider = getProviderForModel(model)
-  if (provider !== "ollama") {
-    throw new Error("Only Ollama models are supported in this local-only setup.")
+  // Resolve via the models cache (populated from Ollama + LM Studio detection).
+  // Prime the cache if it's cold, then look up the model's providerId.
+  let info = getModelInfo(model)
+  if (!info) {
+    await getAllModels()
+    info = getModelInfo(model)
+  }
+
+  if (!info || (info.providerId !== "ollama" && info.providerId !== "lmstudio")) {
+    throw new Error(`Only Ollama and LM Studio models are supported in this local-only setup. Unknown model: ${model}`)
   }
 
   return dbClient
