@@ -47,7 +47,11 @@ export function DialogEditCollection({
 
   // Filter models for different purposes
   const ollamaModels = models.filter((model) => model.providerId === "ollama")
-  const llmModels = ollamaModels.filter((model) => !model.id.includes("embed"))
+  const localChatModels = models.filter(
+    (model) => model.providerId === "ollama" || model.providerId === "lmstudio"
+  )
+  const llmModels = localChatModels.filter((model) => !model.id.includes("embed"))
+  // Embeddings stay on Ollama/HuggingFace (LM Studio is used for chat generation)
   const embeddingModels = ollamaModels.filter((model) => model.id.includes("embed"))
 
   // Load collection data

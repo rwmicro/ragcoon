@@ -3,55 +3,39 @@ import { fetchClient } from "./fetch"
 import { API_ROUTE_CREATE_GUEST, API_ROUTE_UPDATE_CHAT_MODEL } from "./routes"
 
 /**
+ * POST a JSON body to an internal API route and return the parsed response.
+ * Throws an Error built from the response's `error` field (or status text) on
+ * a non-2xx response. `fetchClient` already sets the JSON Content-Type and CSRF
+ * header. Errors propagate to the caller, which is responsible for surfacing them.
+ */
+async function postJson<T = unknown>(
+  route: string,
+  body: unknown,
+  errorLabel: string
+): Promise<T> {
+  const res = await fetchClient(route, {
+    method: "POST",
+    body: JSON.stringify(body),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    throw new Error(data?.error || `${errorLabel}: ${res.status} ${res.statusText}`)
+  }
+  return data
+}
+
+/**
  * Creates a guest user record on the server
  */
 export async function createGuestUser(guestId: string) {
-  try {
-    const res = await fetchClient(API_ROUTE_CREATE_GUEST, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: guestId }),
-    })
-    const responseData = await res.json()
-    if (!res.ok) {
-      throw new Error(
-        responseData.error ||
-        `Failed to create guest user: ${res.status} ${res.statusText}`
-      )
-    }
-
-    return responseData
-  } catch (err) {
-    console.error("Error creating guest user:", err)
-    throw err
-  }
+  return postJson(API_ROUTE_CREATE_GUEST, { userId: guestId }, "Failed to create guest user")
 }
-
 
 /**
  * Updates the model for an existing chat
  */
 export async function updateChatModel(chatId: string, model: string) {
-  try {
-    const res = await fetchClient(API_ROUTE_UPDATE_CHAT_MODEL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, model }),
-    })
-    const responseData = await res.json()
-
-    if (!res.ok) {
-      throw new Error(
-        responseData.error ||
-        `Failed to update chat model: ${res.status} ${res.statusText}`
-      )
-    }
-
-    return responseData
-  } catch (error) {
-    console.error("Error updating chat model:", error)
-    throw error
-  }
+  return postJson(API_ROUTE_UPDATE_CHAT_MODEL, { chatId, model }, "Failed to update chat model")
 }
 
 

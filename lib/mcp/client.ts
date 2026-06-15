@@ -1,6 +1,7 @@
 import { experimental_createMCPClient } from "ai"
 import { Experimental_StdioMCPTransport } from "ai/mcp-stdio"
 import { readMCPConfig, type MCPServerConfig } from "./config"
+import { logger } from "@/lib/logger"
 
 let cachedTools: Record<string, unknown> | null = null
 let cacheExpiresAt = 0
@@ -74,7 +75,7 @@ export async function getMCPTools(): Promise<Record<string, unknown>> {
         const tools = await client.tools()
         Object.assign(allTools, tools)
       } catch (error) {
-        console.warn(`[MCP] Failed to connect to server "${name}":`, error)
+        logger.warn({ err: error, server: name }, "[MCP] failed to connect to server")
       }
     })
   )
@@ -83,7 +84,7 @@ export async function getMCPTools(): Promise<Record<string, unknown>> {
   await Promise.all(
     clients.map(client =>
       (client as any).close?.().catch((err: unknown) =>
-        console.warn('[MCP] Error closing client:', err)
+        logger.warn({ err }, "[MCP] error closing client")
       )
     )
   )

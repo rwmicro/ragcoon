@@ -4,3 +4,8 @@ node_modules
 data
 .env*
 *.md
+
+# Tests (not needed in the production image)
+**/__tests__
+jest.config.js
+jest.setup.js

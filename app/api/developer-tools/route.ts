@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/developer-tools
@@ -30,7 +31,7 @@ export async function GET() {
       success: true,
     })
   } catch (error) {
-    console.error('Error fetching developer tools:', error)
+    logger.error({ err: error }, 'error fetching developer tools')
     return NextResponse.json(
       {
         tools: [],

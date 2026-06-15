@@ -1,5 +1,6 @@
 import { getAllModels } from "@/lib/models"
 import { generateText, wrapLanguageModel, extractReasoningMiddleware } from "ai"
+import { logger } from "@/lib/logger"
 
 export async function POST(req: Request) {
   try {
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     const title = text.trim().replace(/^["']|["']$/g, "").slice(0, 60)
     return Response.json({ title: title || "New Chat" })
   } catch (error) {
-    console.error("[generate-title] Error:", error)
+    logger.error({ err: error }, "[generate-title] error")
     return Response.json({ title: "New Chat" })
   }
 }

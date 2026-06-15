@@ -3,6 +3,7 @@ import {
   refreshModelsCache,
 } from "@/lib/models"
 import { NextResponse } from "next/server"
+import { logger } from "@/lib/logger"
 
 export async function GET() {
   try {
@@ -20,7 +21,7 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error("Error fetching models:", error)
+    logger.error({ err: error }, "error fetching models")
     return new Response(JSON.stringify({ error: "Failed to fetch models" }), {
       status: 500,
       headers: {
@@ -42,7 +43,7 @@ export async function POST() {
       count: models.length,
     })
   } catch (error) {
-    console.error("Failed to refresh models:", error)
+    logger.error({ err: error }, "failed to refresh models")
     return NextResponse.json(
       { error: "Failed to refresh models" },
       { status: 500 }

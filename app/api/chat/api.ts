@@ -8,6 +8,7 @@ import { getAllModels, getModelInfo } from "@/lib/models"
 import { sanitizeUserInput } from "@/lib/sanitize"
 import { validateUserIdentity } from "@/lib/server/api"
 import { getDb } from '@/lib/db'
+import { logger } from '@/lib/logger'
 import { nanoid } from 'nanoid'
 
 async function saveFinalAssistantMessageToSQLite(
@@ -121,7 +122,7 @@ export async function storeAssistantMessage({
   try {
     await saveFinalAssistantMessageToSQLite(chatId, allowedMessages, message_group_id, model)
   } catch (error) {
-    console.error("SQLite assistant message save failed:", error)
+    logger.error({ err: error }, "SQLite assistant message save failed")
     throw error
   }
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 /**
  * RAG Collections API
@@ -14,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('[RAG Collections API] GET request - proxying to Python backend')
+    logger.debug('[RAG Collections API] GET request - proxying to Python backend')
 
     // Proxy to Python backend
     const pythonBackendUrl = process.env.NEXT_PUBLIC_RAG_API_URL || 'http://127.0.0.1:8001'
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Unknown error' }))
-      console.error('[RAG Collections API] Backend error:', error)
+      logger.error({ err: error }, '[RAG Collections API] backend error')
       return NextResponse.json(
         { error: 'Failed to fetch collections from backend', details: error.message || error.detail },
         { status: response.status }
@@ -35,11 +36,11 @@ export async function GET(request: NextRequest) {
     }
 
     const collections = await response.json()
-    console.log(`[RAG Collections API] Successfully fetched ${collections.length} collections`)
+    logger.debug({ count: collections.length }, '[RAG Collections API] fetched collections')
 
     return NextResponse.json({ collections })
   } catch (error) {
-    console.error('[RAG Collections API] Error:', error)
+    logger.error({ err: error }, '[RAG Collections API] GET error')
     return NextResponse.json(
       { error: 'Failed to fetch collections', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('[RAG Collections API] POST request to create collection:', name)
+    logger.debug({ name }, '[RAG Collections API] create collection')
 
     // Proxy to Python backend
     const pythonBackendUrl = process.env.NEXT_PUBLIC_RAG_API_URL || 'http://127.0.0.1:8001'
@@ -85,11 +86,11 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await response.json()
-    console.log('[RAG Collections API] Successfully created collection:', name)
+    logger.debug({ name }, '[RAG Collections API] created collection')
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('[RAG Collections API] Error:', error)
+    logger.error({ err: error }, '[RAG Collections API] POST error')
     return NextResponse.json(
       { error: 'Failed to create collection', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
@@ -109,7 +110,7 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    console.log('[RAG Collections API] DELETE request for:', name)
+    logger.debug({ name }, '[RAG Collections API] delete collection')
 
     // Proxy to Python backend
     const pythonBackendUrl = process.env.NEXT_PUBLIC_RAG_API_URL || 'http://127.0.0.1:8001'
@@ -128,11 +129,11 @@ export async function DELETE(request: NextRequest) {
     const result = await response.json()
 
     // Dispatch event to refresh models list on the client
-    console.log('[RAG Collections API] Successfully deleted collection:', name)
+    logger.debug({ name }, '[RAG Collections API] deleted collection')
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('[RAG Collections API] Error:', error)
+    logger.error({ err: error }, '[RAG Collections API] DELETE error')
     return NextResponse.json(
       { error: 'Failed to delete collection', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

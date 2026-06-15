@@ -1,4 +1,5 @@
 import { createChatInDb } from "./api"
+import { logger } from "@/lib/logger"
 
 export async function POST(request: Request) {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
     return new Response(JSON.stringify({ chat }), { status: 200 })
   } catch (err: unknown) {
-    console.error("Error in create-chat endpoint:", err)
+    logger.error({ err }, "error in create-chat endpoint")
 
     if (err instanceof Error && err.message === "DAILY_LIMIT_REACHED") {
       return new Response(

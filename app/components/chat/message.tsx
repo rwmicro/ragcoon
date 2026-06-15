@@ -105,16 +105,6 @@ export const Message = memo(function Message({
       })
     }
 
-    const traversalData = streamData.find((item: any) => item?.type === 'rag_graph_traversal')
-    if (traversalData?.traversal) {
-      const traversalBase64 = Buffer.from(JSON.stringify(traversalData.traversal)).toString('base64')
-      extras.push({
-        name: '__rag_graph_traversal__',
-        contentType: 'application/json',
-        url: `data:application/json;base64,${traversalBase64}`,
-      })
-    }
-
     return extras.length > 0 ? [...base, ...extras] : base
   }, [attachments, streamData])
 

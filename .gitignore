@@ -72,7 +72,9 @@ build/
 logs/
 *.log.*
 
-# SQLite temporary files
+# SQLite database & temporary files (contains local user data)
+data/*.db
+*.db
 *.db-journal
 *.db-shm
 *.db-wal

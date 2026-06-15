@@ -9,19 +9,12 @@ import {
 } from "@/components/prompt-kit/prompt-input"
 import { Button } from "@/components/ui/button"
 import { useModel } from "@/lib/model-store/provider"
-import { useUserPreferences } from "@/lib/user-preference-store/provider"
 import { ArrowUpIcon, StopIcon } from "@phosphor-icons/react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef } from "react"
 // import { PromptSystem } from "../suggestions/prompt-system"
 import { ButtonFileUpload } from "./button-file-upload"
 import { ButtonSearch } from "./button-search"
 import { FileList } from "./file-list"
-import { VoiceButton } from "../voice/voice-button"
-import dynamic from "next/dynamic"
-import { useVoiceMode } from "@/app/hooks/use-voice-mode"
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden"
-import { ChatsCircle } from "@phosphor-icons/react"
 import { CollectionSelector } from "@/app/components/rag/collection-selector"
 import { useRAG } from "@/hooks/useRAG"
 import { QueryMode, QueryModeSelector } from "./query-mode-selector"
@@ -29,17 +22,6 @@ import { useRAGSettings } from "@/lib/rag-settings-store"
 import type { RAGSettings } from "@/lib/rag-settings-store"
 import { Badge } from "@/components/ui/badge"
 import { Cpu } from "@phosphor-icons/react"
-
-// Dynamically import voice components to avoid SSR issues
-const VoiceMode = dynamic(() => import("../voice/voice-mode").then((mod) => ({ default: mod.VoiceMode })), {
-  ssr: false,
-  loading: () => <div className="flex items-center justify-center h-full"><div className="animate-pulse">Loading...</div></div>
-})
-
-const VoiceConversation = dynamic(() => import("../voice/voice-conversation").then((mod) => ({ default: mod.VoiceConversation })), {
-  ssr: false,
-  loading: () => <div className="flex items-center justify-center h-full"><div className="animate-pulse">Loading...</div></div>
-})
 
 type ChatInputProps = {
   value: string
@@ -57,7 +39,6 @@ type ChatInputProps = {
   setEnableSearch: (enabled: boolean) => void
   enableSearch: boolean
   quotedText?: { text: string; messageId: string } | null
-  lastAssistantMessage?: string
   queryMode: QueryMode
   onQueryModeChange: (mode: QueryMode) => void
 }
@@ -77,12 +58,10 @@ export function ChatInput({
   setEnableSearch,
   enableSearch,
   quotedText,
-  lastAssistantMessage,
   queryMode,
   onQueryModeChange,
 }: ChatInputProps) {
   const { models } = useModel()
-  const { preferences } = useUserPreferences()
   const { activeCollectionId, setActiveCollectionId } = useRAG()
   const ragSettingsStore = useRAGSettings() as { settings: RAGSettings }
 
@@ -91,19 +70,6 @@ export function ChatInput({
   const hasSearchSupport = true
   const isOnlyWhitespace = (text: string) => !/[^\s]/.test(text)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const sendTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [isVoiceModeOpen, setIsVoiceModeOpen] = useState(false)
-  const [isConversationModeOpen, setIsConversationModeOpen] = useState(false)
-
-  const voiceHook = useVoiceMode({
-    onTranscript: (text) => {
-      onValueChange(text)
-      setIsVoiceModeOpen(false)
-    },
-    onError: (error) => {
-      console.error("Voice error:", error)
-    },
-  })
 
   const handleSend = useCallback(() => {
     if (isSubmitting) {
@@ -196,15 +162,6 @@ export function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quotedText, onValueChange])
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (sendTimeoutRef.current) {
-        clearTimeout(sendTimeoutRef.current)
-      }
-    }
-  }, [])
-
   // Removed useMemo that disabled search for models without webSearch support
   // Now all models can use web search
 
@@ -268,34 +225,6 @@ export function ChatInput({
               />
             </div>
             <div className="flex gap-2">
-              {/* Voice conversation button */}
-              {preferences.enableSTT && (
-                <PromptInputAction tooltip="Voice Conversation">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="size-9 rounded-full"
-                    disabled={isSubmitting}
-                    type="button"
-                    onClick={() => setIsConversationModeOpen(true)}
-                    aria-label="Start voice conversation"
-                  >
-                    <ChatsCircle className="size-4" />
-                  </Button>
-                </PromptInputAction>
-              )}
-
-              {/* Voice button - inline mode */}
-              {preferences.enableSTT && (
-                <VoiceButton
-                  status={voiceHook.status}
-                  audioLevel={voiceHook.audioLevel}
-                  onStart={() => setIsVoiceModeOpen(true)}
-                  onStop={voiceHook.stopListening}
-                  disabled={isSubmitting}
-                  className="size-9"
-                />
-              )}
               <PromptInputAction
                 tooltip={status === "streaming" ? "Stop" : "Send"}
               >
@@ -318,53 +247,6 @@ export function ChatInput({
           </PromptInputActions>
         </PromptInput>
       </div>
-
-      {/* Voice Mode Dialog - Fullscreen */}
-      <Dialog open={isVoiceModeOpen} onOpenChange={setIsVoiceModeOpen}>
-        <DialogContent className="max-w-full h-screen w-screen p-0 m-0" hasCloseButton={false}>
-          <VisuallyHidden.Root>
-            <DialogTitle>Voice Mode</DialogTitle>
-          </VisuallyHidden.Root>
-          <VoiceMode
-            onTranscript={(text) => {
-              onValueChange(text)
-              setIsVoiceModeOpen(false)
-            }}
-            onClose={() => setIsVoiceModeOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      {/* Voice Conversation Dialog - Fit content */}
-      <Dialog open={isConversationModeOpen} onOpenChange={setIsConversationModeOpen}>
-        <DialogContent className="max-w-4xl w-full p-0 m-0" hasCloseButton={false} customMaxWidth="56rem">
-          <VisuallyHidden.Root>
-            <DialogTitle>Voice Conversation</DialogTitle>
-          </VisuallyHidden.Root>
-          <VoiceConversation
-            onTranscript={(text) => {
-              // Set the value and auto-send only if we have text
-              if (text && text.trim().length > 0) {
-                onValueChange(text)
-
-                // Clear any existing timeout
-                if (sendTimeoutRef.current) {
-                  clearTimeout(sendTimeoutRef.current)
-                }
-
-                // Wait a bit for the value to be set, then send
-                sendTimeoutRef.current = setTimeout(() => {
-                  onSend()
-                }, 100)
-              } else {
-                console.warn("⚠️ Empty transcript received, not sending")
-              }
-            }}
-            onClose={() => setIsConversationModeOpen(false)}
-            lastResponse={lastAssistantMessage}
-          />
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import { refreshModelsCache, getAllModels } from '@/lib/models'
+import { logger } from '@/lib/logger'
 
 export async function POST() {
   try {
-    console.log('Force refreshing models cache...')
+    logger.debug('force refreshing models cache')
 
     // Clear the cache
     refreshModelsCache()
@@ -11,8 +12,7 @@ export async function POST() {
     // Force reload all models
     const models = await getAllModels()
 
-    console.log(`Refreshed ${models.length} models`)
-    console.log('Models:', models.map(m => `${m.id} (${m.providerId})`).join(', '))
+    logger.debug({ count: models.length }, 'refreshed models')
 
     return NextResponse.json({
       success: true,
@@ -26,7 +26,7 @@ export async function POST() {
     })
 
   } catch (error) {
-    console.error('Error refreshing models:', error)
+    logger.error({ err: error }, 'error refreshing models')
 
     return NextResponse.json({
       success: false,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
+import { logger } from '@/lib/logger'
 
 export async function POST(req: NextRequest) {
   try {
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
         )
     }
   } catch (error) {
-    console.error('SQLite chats API error:', error)
+    logger.error({ err: error }, 'SQLite chats API error')
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

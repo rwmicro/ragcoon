@@ -23,7 +23,7 @@ import {
 
 export function UserProfile() {
   const { user } = useUser()
-  const { settings, setDefaultModel, setAutoSendVoice, setMessageRetention } = useAISettings()
+  const { settings, setDefaultModel, setMessageRetention } = useAISettings()
   const { models } = useModel()
 
   // Filter out RAG models for default model selection
@@ -85,28 +85,6 @@ export function UserProfile() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        {/* Auto-send Voice */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Label htmlFor="autoSendVoice" className="cursor-pointer">
-              Auto-send Voice Messages
-            </Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="size-4 text-muted-foreground cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p>Automatically send voice transcripts without manual confirmation</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <Switch
-            id="autoSendVoice"
-            checked={settings.autoSendVoice}
-            onCheckedChange={setAutoSendVoice}
-          />
         </div>
 
         {/* Message Retention */}

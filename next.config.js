@@ -26,13 +26,28 @@ const nextConfig = {
     },
   },
 
-  // Experimental features
+  // Auto-memoize components/hooks at build time (React 19 + React Compiler),
+  // removing the need for most manual useMemo/useCallback/React.memo.
+  reactCompiler: true,
+
   experimental: {
-    // Enable server actions if needed
     serverActions: {
       bodySizeLimit: '10mb',
     },
+    // Tree-shake barrel exports of large icon / UI packages so only the
+    // components actually used are bundled.
+    optimizePackageImports: [
+      'lucide-react',
+      'react-icons',
+      '@phosphor-icons/react',
+    ],
   },
 }
 
-module.exports = nextConfig
+// Wrap with the bundle analyzer; run `ANALYZE=true npm run build` to inspect
+// the client/server bundles.
+const withBundleAnalyzer = require('@next/bundle-analyzer')({
+  enabled: process.env.ANALYZE === 'true',
+})
+
+module.exports = withBundleAnalyzer(nextConfig)

@@ -2,6 +2,7 @@
  * Rate limiter using sliding window algorithm
  * Stores requests in memory with automatic cleanup
  */
+import { logger } from "@/lib/logger"
 
 interface RateLimitEntry {
   count: number
@@ -93,7 +94,7 @@ class RateLimiter {
     }
 
     if (cleaned > 0) {
-      console.log(`[Rate Limiter] Cleaned up ${cleaned} old entries`)
+      logger.debug({ cleaned }, "[Rate Limiter] cleaned up old entries")
     }
   }
 

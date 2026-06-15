@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { logger } from '@/lib/logger'
 
 export async function GET() {
   try {
@@ -61,7 +62,7 @@ export async function GET() {
     })
     
   } catch (error) {
-    console.error('Error fetching Ollama embedding models:', error)
+    logger.error({ err: error }, 'error fetching Ollama embedding models')
     
     // Return fallback list if Ollama is not available
     const fallbackModels = [

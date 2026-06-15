@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { nanoid } from 'nanoid'
 import { getDb } from '@/lib/db'
+import { logger } from '@/lib/logger'
 
 const VALID_ROLES = ['user', 'assistant', 'system'] as const
 
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
               try {
                 experimentalAttachments = JSON.parse(msg.experimental_attachments)
               } catch (e) {
-                console.error('[SQLite] Failed to parse experimental_attachments:', e)
+                logger.error({ err: e }, '[SQLite] failed to parse experimental_attachments')
               }
             }
 
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest) {
           )
     }
   } catch (error) {
-    console.error('SQLite messages API error:', error)
+    logger.error({ err: error }, 'SQLite messages API error')
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

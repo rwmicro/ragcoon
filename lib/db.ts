@@ -2,6 +2,7 @@ import sqlite3 from 'sqlite3'
 import { open, Database } from 'sqlite'
 import path from 'path'
 import fs from 'fs'
+import { logger } from './logger'
 
 // Singleton — one connection per process, opened lazily
 let dbPromise: Promise<Database> | null = null
@@ -102,7 +103,7 @@ export async function vacuumDb(): Promise<void> {
   try {
     await db.exec('PRAGMA incremental_vacuum;')
   } catch (error) {
-    console.error('Error during vacuum:', error)
+    logger.error({ err: error }, 'error during vacuum')
   }
 }
 

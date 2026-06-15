@@ -1,4 +1,5 @@
 import { Message as MessageAISDK } from "ai"
+import { logger } from "@/lib/logger"
 
 /**
  * Clean messages when switching between agents with different tool capabilities.
@@ -147,7 +148,7 @@ export type ApiError = Error & {
  * @returns Structured error with status code and error code
  */
 export function handleStreamError(err: unknown): ApiError {
-  console.error("🛑 streamText error:", err)
+  logger.error({ err }, "streamText error")
 
   // Extract error details from the AI SDK error
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

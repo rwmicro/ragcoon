@@ -1,5 +1,6 @@
 import { validateUserIdentity } from "@/lib/server/api"
 import { getDb } from '@/lib/db'
+import { logger } from '@/lib/logger'
 
 type CreateChatInput = {
   userId: string
@@ -49,7 +50,7 @@ export async function createChatInDb({
       ]
     )
   } catch (error) {
-    console.error('Failed to save chat to database:', error)
+    logger.error({ err: error }, 'failed to save chat to database')
   }
 
   return chat

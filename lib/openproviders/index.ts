@@ -34,7 +34,8 @@ const getOllamaBaseURL = () => {
 // Get LM Studio base URL — LM Studio exposes an OpenAI-compatible API at /v1
 const getLMStudioBaseURL = () => {
   if (typeof window !== "undefined") {
-    return "http://0.0.0.0:1234/v1"
+    // Client-side: reach the local LM Studio server via localhost (mirrors Ollama).
+    return "http://localhost:1234/v1"
   }
 
   const baseUrl = process.env.LMSTUDIO_BASE_URL || "http://0.0.0.0:1234"

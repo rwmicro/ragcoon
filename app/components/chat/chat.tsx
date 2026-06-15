@@ -206,14 +206,6 @@ export function Chat() {
     ]
   )
 
-  // Get the last assistant message for voice conversation
-  const lastAssistantMessage = useMemo(() => {
-    const assistantMessages = messages.filter((m) => m.role === "assistant")
-    return assistantMessages.length > 0
-      ? assistantMessages[assistantMessages.length - 1].content
-      : undefined
-  }, [messages])
-
   // Memoize the chat input props
   // Optimize dependencies - avoid unnecessary re-creation
   const chatInputProps = useMemo(
@@ -237,7 +229,6 @@ export function Chat() {
       setEnableSearch,
       enableSearch,
       quotedText,
-      lastAssistantMessage,
       queryMode,
       onQueryModeChange: setQueryMode,
     }),
@@ -248,7 +239,6 @@ export function Chat() {
       isSubmitting,
       files,
       handleFileUpload,
-      lastAssistantMessage,
       handleFileRemove,
       handleModelChange,
       selectedModel,

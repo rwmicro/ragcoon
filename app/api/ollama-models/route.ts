@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { logger } from '@/lib/logger'
 
 // Get Ollama base URL from environment or use default
 const getOllamaBaseURL = () => {
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
     })
 
     if (!response.ok) {
-      console.warn(`Ollama not available at ${baseURL} or no models found`)
+      logger.warn({ baseURL }, "Ollama not available or no models found")
       return Response.json({ models: [] }, { status: 200 })
     }
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
 
     return Response.json({ models }, { status: 200 })
   } catch (error) {
-    console.warn("Failed to fetch Ollama models:", error)
+    logger.warn({ err: error }, "failed to fetch Ollama models")
     return Response.json({ models: [] }, { status: 200 })
   }
 }

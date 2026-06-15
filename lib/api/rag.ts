@@ -43,51 +43,56 @@ export interface RAGStats {
 }
 
 /**
+ * Shared ingestion options common to file / URL / async ingestion endpoints.
+ */
+type IngestOptions = Partial<{
+  collection_id: string
+  collection_title: string
+  llm_model: string
+  chunk_size: number
+  chunk_overlap: number
+  chunking_strategy: "semantic" | "recursive" | "markdown"
+  embedding_model: string
+  embedding_provider: "ollama" | "huggingface" | "auto"
+  use_ollama_embedding: boolean
+  use_hybrid_embedding: boolean
+  use_adaptive_fusion: boolean
+  structural_weight: number
+  reranker_model: string
+}>
+
+/**
+ * Append the shared ingestion options to a FormData payload. Only defined
+ * values are appended; booleans/numbers are stringified. Note the backend
+ * expects `embedding_model` to be sent as `embedding_model_name`.
+ */
+function appendIngestOptions(formData: FormData, opts: IngestOptions): void {
+  const append = (key: string, value: string | number | boolean | undefined) => {
+    if (value !== undefined) formData.append(key, String(value))
+  }
+
+  append("collection_id", opts.collection_id)
+  append("collection_title", opts.collection_title)
+  append("llm_model", opts.llm_model)
+  append("chunk_size", opts.chunk_size)
+  append("chunk_overlap", opts.chunk_overlap)
+  append("chunking_strategy", opts.chunking_strategy)
+  append("embedding_model_name", opts.embedding_model)
+  append("embedding_provider", opts.embedding_provider)
+  append("use_ollama_embedding", opts.use_ollama_embedding)
+  append("use_hybrid_embedding", opts.use_hybrid_embedding)
+  append("use_adaptive_fusion", opts.use_adaptive_fusion)
+  append("structural_weight", opts.structural_weight)
+  append("reranker_model", opts.reranker_model)
+}
+
+/**
  * Upload and ingest a file into the RAG system
  */
 export async function uploadFile(request: UploadFileRequest): Promise<UploadFileResponse> {
   const formData = new FormData()
   formData.append("file", request.file)
-
-  if (request.collection_id) {
-    formData.append("collection_id", request.collection_id)
-  }
-  if (request.collection_title) {
-    formData.append("collection_title", request.collection_title)
-  }
-  if (request.llm_model) {
-    formData.append("llm_model", request.llm_model)
-  }
-  if (request.chunk_size) {
-    formData.append("chunk_size", request.chunk_size.toString())
-  }
-  if (request.chunk_overlap) {
-    formData.append("chunk_overlap", request.chunk_overlap.toString())
-  }
-  if (request.chunking_strategy) {
-    formData.append("chunking_strategy", request.chunking_strategy)
-  }
-  if (request.embedding_model) {
-    formData.append("embedding_model_name", request.embedding_model)
-  }
-  if (request.embedding_provider) {
-    formData.append("embedding_provider", request.embedding_provider)
-  }
-  if (request.use_ollama_embedding !== undefined) {
-    formData.append("use_ollama_embedding", request.use_ollama_embedding.toString())
-  }
-  if (request.use_hybrid_embedding !== undefined) {
-    formData.append("use_hybrid_embedding", request.use_hybrid_embedding.toString())
-  }
-  if (request.use_adaptive_fusion !== undefined) {
-    formData.append("use_adaptive_fusion", request.use_adaptive_fusion.toString())
-  }
-  if (request.structural_weight !== undefined) {
-    formData.append("structural_weight", request.structural_weight.toString())
-  }
-  if (request.reranker_model) {
-    formData.append("reranker_model", request.reranker_model)
-  }
+  appendIngestOptions(formData, request)
 
   const response = await fetch(`${RAG_API_URL}/ingest/file`, {
     method: "POST",
@@ -124,44 +129,7 @@ export interface IngestUrlRequest {
 export async function ingestUrl(request: IngestUrlRequest): Promise<UploadFileResponse> {
   const formData = new FormData()
   formData.append("url", request.url)
-  formData.append("collection_title", request.collection_title)
-
-  if (request.collection_id) {
-    formData.append("collection_id", request.collection_id)
-  }
-  if (request.llm_model) {
-    formData.append("llm_model", request.llm_model)
-  }
-  if (request.chunk_size) {
-    formData.append("chunk_size", request.chunk_size.toString())
-  }
-  if (request.chunk_overlap) {
-    formData.append("chunk_overlap", request.chunk_overlap.toString())
-  }
-  if (request.chunking_strategy) {
-    formData.append("chunking_strategy", request.chunking_strategy)
-  }
-  if (request.embedding_model) {
-    formData.append("embedding_model_name", request.embedding_model)
-  }
-  if (request.embedding_provider) {
-    formData.append("embedding_provider", request.embedding_provider)
-  }
-  if (request.use_ollama_embedding !== undefined) {
-    formData.append("use_ollama_embedding", request.use_ollama_embedding.toString())
-  }
-  if (request.use_hybrid_embedding !== undefined) {
-    formData.append("use_hybrid_embedding", request.use_hybrid_embedding.toString())
-  }
-  if (request.use_adaptive_fusion !== undefined) {
-    formData.append("use_adaptive_fusion", request.use_adaptive_fusion.toString())
-  }
-  if (request.structural_weight !== undefined) {
-    formData.append("structural_weight", request.structural_weight.toString())
-  }
-  if (request.reranker_model) {
-    formData.append("reranker_model", request.reranker_model)
-  }
+  appendIngestOptions(formData, request)
 
   const response = await fetch(`${RAG_API_URL}/ingest/url`, {
     method: "POST",
@@ -266,19 +234,7 @@ export async function uploadFileAsync(
 ): Promise<AsyncIngestionJob> {
   const formData = new FormData()
   formData.append("file", request.file)
-  if (request.collection_id) formData.append("collection_id", request.collection_id)
-  if (request.collection_title) formData.append("collection_title", request.collection_title)
-  if (request.llm_model) formData.append("llm_model", request.llm_model)
-  if (request.chunk_size) formData.append("chunk_size", request.chunk_size.toString())
-  if (request.chunk_overlap) formData.append("chunk_overlap", request.chunk_overlap.toString())
-  if (request.chunking_strategy) formData.append("chunking_strategy", request.chunking_strategy)
-  if (request.embedding_model) formData.append("embedding_model_name", request.embedding_model)
-  if (request.embedding_provider) formData.append("embedding_provider", request.embedding_provider)
-  if (request.use_ollama_embedding !== undefined) formData.append("use_ollama_embedding", request.use_ollama_embedding.toString())
-  if (request.use_hybrid_embedding !== undefined) formData.append("use_hybrid_embedding", request.use_hybrid_embedding.toString())
-  if (request.use_adaptive_fusion !== undefined) formData.append("use_adaptive_fusion", request.use_adaptive_fusion.toString())
-  if (request.structural_weight !== undefined) formData.append("structural_weight", request.structural_weight.toString())
-  if (request.reranker_model) formData.append("reranker_model", request.reranker_model)
+  appendIngestOptions(formData, request)
 
   const response = await fetch(`${RAG_API_URL}/ingest/file/async`, {
     method: "POST",
@@ -673,21 +629,6 @@ export async function getQueryLogs(
 }
 
 /**
- * Clear graph cache
- */
-export async function clearGraphCache(): Promise<{ success: boolean; message: string }> {
-  const response = await fetch(`${RAG_API_URL}/cache/graph`, {
-    method: "DELETE",
-  })
-
-  if (!response.ok) {
-    throw new Error(`Failed to clear graph cache: ${response.statusText}`)
-  }
-
-  return response.json()
-}
-
-/**
  * Get list of URLs in a collection
  */
 export async function listUrls(collectionId: string): Promise<string[]> {
@@ -695,93 +636,6 @@ export async function listUrls(collectionId: string): Promise<string[]> {
 
   if (!response.ok) {
     throw new Error(`Failed to list URLs: ${response.statusText}`)
-  }
-
-  return response.json()
-}
-
-/**
- * Get Graph RAG visualization data for a collection
- */
-export async function getCollectionGraph(collectionId: string): Promise<{
-  nodes: Array<{
-    id: string
-    type: "entity" | "chunk"
-    entity_type?: string
-    label: string
-    mentions?: number
-    importance?: number
-    embedding?: number[]
-    content?: string
-  }>
-  edges: Array<{
-    source: string
-    target: string
-    type: string
-    weight: number
-  }>
-  stats: {
-    num_entities: number
-    num_chunks: number
-    num_edges: number
-    avg_entities_per_chunk: number
-    top_entities: Array<{
-      name: string
-      mentions: number
-      importance: number
-    }>
-  }
-}> {
-  const response = await fetch(`${RAG_API_URL}/collections/${collectionId}/graph`)
-
-  if (!response.ok) {
-    throw new Error(`Failed to get collection graph: ${response.statusText}`)
-  }
-
-  return response.json()
-}
-
-/**
- * Get UMAP projection of collection embeddings for visualization
- */
-export async function getCollectionUMAP(
-  collectionId: string,
-  options?: {
-    n_components?: number
-    n_neighbors?: number
-    min_dist?: number
-    metric?: string
-  }
-): Promise<{
-  points: Array<{
-    coordinates: number[]
-    label: string
-    metadata: {
-      chunk_id: string
-      source: string
-      file_name: string
-    }
-  }>
-  labels: string[]
-  stats: {
-    num_points: number
-    n_components: number
-    n_neighbors: number
-    min_dist: number
-    metric: string
-  }
-}> {
-  const params = new URLSearchParams()
-  if (options?.n_components) params.append("n_components", options.n_components.toString())
-  if (options?.n_neighbors) params.append("n_neighbors", options.n_neighbors.toString())
-  if (options?.min_dist) params.append("min_dist", options.min_dist.toString())
-  if (options?.metric) params.append("metric", options.metric)
-
-  const url = `${RAG_API_URL}/collections/${collectionId}/umap${params.toString() ? `?${params.toString()}` : ""}`
-  const response = await fetch(url)
-
-  if (!response.ok) {
-    throw new Error(`Failed to get UMAP projection: ${response.statusText}`)
   }
 
   return response.json()

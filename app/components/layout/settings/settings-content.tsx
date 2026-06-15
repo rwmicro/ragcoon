@@ -21,6 +21,7 @@ import { ThemeSelection } from "./appearance/theme-selection"
 import { ConnectionsPlaceholder } from "./connections/connections-placeholder"
 import { DeveloperTools } from "./connections/developer-tools"
 import { OllamaSection } from "./connections/ollama-section"
+import { LMStudioSection } from "./connections/lmstudio-section"
 import { UserProfile } from "./general/user-profile"
 import { AIBehavior } from "./general/ai-behavior"
 import { AgenticSettings } from "./general/agentic-settings"
@@ -179,6 +180,7 @@ export function SettingsContent({
               <TabsContent value="connections" className="space-y-6 mt-0">
                 {!isDev && <ConnectionsPlaceholder />}
                 {isDev && <OllamaSection />}
+                {isDev && <LMStudioSection />}
                 {isDev && <DeveloperTools />}
               </TabsContent>
 
@@ -291,6 +293,7 @@ export function SettingsContent({
                   </div>
                   {!isDev && <ConnectionsPlaceholder />}
                   {isDev && <OllamaSection />}
+                  {isDev && <LMStudioSection />}
                   {isDev && <DeveloperTools />}
                 </TabsContent>
 

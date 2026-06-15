@@ -13,14 +13,16 @@ interface LMStudioListResponse {
 
 const getLMStudioBaseURL = (): string => {
   if (typeof window !== "undefined") {
-    return "http://0.0.0.0:1234"
+    // Client-side: the browser reaches the local LM Studio server via localhost
+    // (mirrors the Ollama client default).
+    return "http://localhost:1234"
   }
   return (
     process.env.LMSTUDIO_BASE_URL?.replace(/\/+$/, "") || "http://0.0.0.0:1234"
   )
 }
 
-function extractFamilyFromId(modelId: string): string {
+export function extractFamilyFromId(modelId: string): string {
   const name = modelId.toLowerCase()
   if (name.includes("codellama")) return "Code Llama"
   if (name.includes("codegemma")) return "CodeGemma"
@@ -80,12 +82,12 @@ function getIconFromFamily(family: string): string {
   }
 }
 
-function extractSizeFromId(modelId: string): string | null {
+export function extractSizeFromId(modelId: string): string | null {
   const sizeMatch = modelId.match(/(\d+\.?\d*)[bB](?![a-z])/)
   return sizeMatch ? `${sizeMatch[1]}B` : null
 }
 
-function estimateContextWindow(family: string, modelId: string): number {
+export function estimateContextWindow(family: string, modelId: string): number {
   const name = modelId.toLowerCase()
   if (name.includes("32k")) return 32768
   if (name.includes("128k")) return 131072
@@ -108,7 +110,7 @@ function estimateContextWindow(family: string, modelId: string): number {
   }
 }
 
-function checkVisionCapability(modelId: string): boolean {
+export function checkVisionCapability(modelId: string): boolean {
   const name = modelId.toLowerCase()
   return (
     name.includes("vision") ||
@@ -121,7 +123,7 @@ function checkVisionCapability(modelId: string): boolean {
   )
 }
 
-function formatModelName(modelId: string): string {
+export function formatModelName(modelId: string): string {
   const base = modelId.split("/").pop() || modelId
   return base
     .replace(/-gguf$/i, "")

@@ -10,6 +10,7 @@ import {
   validateAndTrackUsage,
 } from "./api"
 import { createErrorResponse, extractErrorMessage } from "./utils"
+import { logger } from "@/lib/logger"
 
 export const maxDuration = 60
 
@@ -82,7 +83,7 @@ export async function POST(req: Request) {
     const rateLimit = rateLimiter.check(clientId, RATE_LIMITS.CHAT.maxRequests, RATE_LIMITS.CHAT.windowMs)
 
     if (!rateLimit.allowed) {
-      console.warn(`Rate limit exceeded for client: ${clientId}`)
+      logger.warn({ clientId }, "rate limit exceeded")
       return createRateLimitResponse(rateLimit.resetTime)
     }
   }
@@ -166,7 +167,7 @@ export async function POST(req: Request) {
     const modelConfig = allModels.find((m) => m.id === model)
 
     if (!modelConfig) {
-      console.error(`Model ${model} not found in available models`)
+      logger.error({ model }, "model not found in available models")
       throw new Error(`Model ${model} not found`)
     }
 
@@ -195,7 +196,6 @@ export async function POST(req: Request) {
       const encoder = new TextEncoder()
       let fullAnswer = ''
       let ragSources: any[] = []
-      let ragGraphTraversal: any = null
 
       const stream = new ReadableStream({
         async start(controller) {
@@ -222,7 +222,7 @@ export async function POST(req: Request) {
                   }
                 }
               } catch (error) {
-                console.warn('[RAG] Could not fetch collections:', error)
+                logger.warn({ err: error }, "[RAG] could not fetch collections")
               }
             }
 
@@ -313,11 +313,6 @@ export async function POST(req: Request) {
                       continue
                     }
 
-                    if (json.type === "graph_traversal") {
-                      ragGraphTraversal = json.traversal || null
-                      continue
-                    }
-
                     if (json.type === "status") {
                       continue
                     }
@@ -348,11 +343,6 @@ export async function POST(req: Request) {
               controller.enqueue(encoder.encode(`2:${sourcesData}\n`))
             }
 
-            if (ragGraphTraversal) {
-              const traversalData = JSON.stringify([{ type: 'rag_graph_traversal', traversal: ragGraphTraversal }])
-              controller.enqueue(encoder.encode(`2:${traversalData}\n`))
-            }
-
             // Store message BEFORE closing the controller so errors can still be forwarded
             await storeAssistantMessage({
               validation,
@@ -367,7 +357,7 @@ export async function POST(req: Request) {
           } catch (error) {
             // Cancel the upstream reader so the Python backend stops streaming
             await reader?.cancel().catch(() => {})
-            console.error('[RAG] Error in stream:', error)
+            logger.error({ err: error }, "[RAG] error in stream")
             const errorMsg = error instanceof Error ? error.message : String(error)
             controller.enqueue(encoder.encode(`3:${JSON.stringify(errorMsg)}\n`))
             controller.close()
@@ -387,7 +377,7 @@ export async function POST(req: Request) {
 
     // Regular (non-RAG) model handling
     if (!modelConfig.apiSdk) {
-      console.error(`Model ${model} has no apiSdk configured`)
+      logger.error({ model }, "model has no apiSdk configured")
       throw new Error(`Model ${model} configuration error`)
     }
 
@@ -451,7 +441,7 @@ When you do use web search:
       frequencyPenalty: aiSettings?.frequencyPenalty,
       presencePenalty: aiSettings?.presencePenalty,
       onError: (err: unknown) => {
-        console.error("Streaming error occurred:", err)
+        logger.error({ err }, "streaming error occurred")
         // Don't set streamError anymore - let the AI SDK handle it through the stream
       },
 
@@ -471,12 +461,12 @@ When you do use web search:
       sendReasoning: true,
       sendSources: true,
       getErrorMessage: (error: unknown) => {
-        console.error("Error forwarded to client:", error)
+        logger.error({ err: error }, "error forwarded to client")
         return extractErrorMessage(error)
       },
     })
   } catch (err: unknown) {
-    console.error("Error in /api/chat:", err)
+    logger.error({ err }, "error in /api/chat")
     const error = err as {
       code?: string
       message?: string
